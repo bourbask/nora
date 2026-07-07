@@ -46,3 +46,7 @@ web/ui/vite.config.d.ts
 .DS_Store
 Thumbs.db
 session-*.md
+
+# local DB dumps (PII)
+data-backup-precutover.sql.gz
+*.sql.gz
