@@ -1,0 +1,74 @@
+services:
+  postgres:
+    image: postgres:15.6-alpine
+    container_name: firefly-db
+    restart: unless-stopped
+    volumes:
+      - ./postgres:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=firefly
+      - POSTGRES_USER=firefly
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    networks:
+      - firefly-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U firefly -d firefly"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  firefly-iii:
+    image: fireflyiii/core:version-6.1.21
+    container_name: firefly-iii
+    restart: unless-stopped
+    ports:
+      - "8066:8080"
+    volumes:
+      - ./firefly-iii/oauth-private.key:/var/www/html/storage/oauth-private.key
+      - ./firefly-iii/oauth-public.key:/var/www/html/storage/oauth-public.key
+      - ./firefly-iii/upload:/var/www/html/storage/upload
+      - ./firefly-iii/backup:/var/www/html/storage/backup
+    environment:
+      - APP_KEY=${APP_KEY}
+      - DB_CONNECTION=pgsql
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=firefly
+      - DB_USERNAME=firefly
+      - DB_PASSWORD=${DB_PASSWORD}
+      - APP_URL=http://localhost:8066
+      - TRUSTED_PROXIES=**
+      - ENABLE_EXTERNAL_IPS=1
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - firefly-net
+
+  data-importer:
+    image: fireflyiii/data-importer:version-1.4.4
+    container_name: firefly-iii-importer
+    restart: unless-stopped
+    ports:
+      - "8067:8080"
+    environment:
+      - FIREFLY_III_URL=http://firefly-iii:8080
+      - FIREFLY_III_ACCESS_TOKEN=${FIREFLY_III_ACCESS_TOKEN}
+      - OAUTH_ENABLED=true
+      - APP_KEY=${APP_KEY}
+      - IMPORT_CONFIG_PATH=/config/config.json
+      - CAN_POST_FILES=true
+      - AUTO_IMPORT_SECRET=${AUTO_IMPORT_SECRET}
+    volumes:
+      - ./importer/config:/config
+      - ./importer/imports:/imports
+      - ./importer/patches/PseudoTransactionProcessor.php:/var/www/html/app/Services/CSV/Conversion/Routine/PseudoTransactionProcessor.php
+    depends_on:
+      firefly-iii:
+        condition: service_started
+    networks:
+      - firefly-net
+
+networks:
+  firefly-net:
+    driver: bridge

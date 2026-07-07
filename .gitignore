@@ -1,0 +1,44 @@
+# === Secrets & personal data — NEVER commit ===
+.env
+config/strategy.yaml          # real accounts/targets (use strategy.example.yaml)
+rules/categorization.yaml     # real (use categorization.example.yaml)
+importer/config/config.json   # real account→ID mapping (use config.example.json)
+importer/config/import_config_*.json
+
+# Private provider plugins (concrete banks/brokers) — the personal data layer.
+# Everything under providers/ is local except the contract doc and the example.
+providers/*
+!providers/README.md
+!providers/example/
+!providers/example/**
+
+# Local-only personal docs (diagnostics, objectives)
+docs-local/
+
+# Runtime data (transactions, backups, imports, DB, logs, state)
+data/
+importer/imports/
+postgres/
+firefly-iii/upload/
+firefly-iii/backup/
+firefly-iii/oauth-*.key
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+
+# Web build/deps
+node_modules/
+web/ui/dist/
+*.tsbuildinfo
+web/ui/vite.config.js
+web/ui/vite.config.d.ts
+
+# Misc
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+session-*.md
