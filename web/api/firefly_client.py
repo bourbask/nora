@@ -219,3 +219,107 @@ def expense_by_category(month, cfg, top=None):
             for k, v in cats.items() if k.lower() not in exclude and v > 0]
     rows.sort(key=lambda r: r["amount"], reverse=True)
     return rows[:top] if top else rows
+
+
+# ── portfolio (cost basis, derived from transfer transactions) ───────────────
+
+def _all_transfers():
+    """All transfer transactions (paginated). Each split has description,
+    amount, source_name, destination_name."""
+    out = []
+    page = 1
+    while True:
+        data = api_get("/transactions", {"type": "transfer", "limit": 200, "page": page})
+        groups = data.get("data", [])
+        if not groups:
+            break
+        for g in groups:
+            for t in g["attributes"]["transactions"]:
+                out.append(t)
+        pag = data.get("meta", {}).get("pagination", {})
+        if page >= pag.get("total_pages", page):
+            break
+        page += 1
+    return out
+
+
+def _match_rule(instrument, rules):
+    low = instrument.lower()
+    for r in rules:
+        for kw in r.get("match", []):
+            if kw == "*" or kw.lower() in low:
+                return r
+    return {"bucket": "mid", "class": "stock"}
+
+
+def portfolio(cfg):
+    """Per-instrument cost basis from 'Achat:'/'Vente:' transfers into invested
+    accounts. Buy adds, sell subtracts. Aggregated by risk bucket and asset class.
+    Reconciles against invested account balances (booked at cost)."""
+    inv_accounts = set(cfg["invested"]["accounts"])
+    rules = cfg["invested"].get("instrument_rules", [])
+
+    instrument_cost = {}
+    for t in _all_transfers():
+        src = t.get("source_name") or ""
+        dest = t.get("destination_name") or ""
+        amount = abs(float(t.get("amount") or 0))
+        # Buy = cash -> invested account (+cost). Sell = invested -> cash (-cost).
+        # The account side is authoritative (sells are booked with dest=cash, so
+        # filtering on destination alone would miss them and inflate the total).
+        if dest in inv_accounts and src not in inv_accounts:
+            sign = 1
+        elif src in inv_accounts and dest not in inv_accounts:
+            sign = -1
+        else:
+            continue  # internal reshuffle or unrelated transfer
+        desc = t.get("description") or ""
+        name = desc.split(":", 1)[-1].strip() if ":" in desc else desc.strip()
+        if not name:
+            continue
+        instrument_cost[name] = instrument_cost.get(name, 0.0) + sign * amount
+
+    # drop fully-exited (≈0 or negative) instruments from allocation
+    instrument_cost = {k: round(v, 2) for k, v in instrument_cost.items() if v > 0.01}
+    total = round(sum(instrument_cost.values()), 2)
+
+    by_bucket = {"high": 0.0, "mid": 0.0, "low": 0.0}
+    by_class = {}
+    instruments = []
+    for name, cost in sorted(instrument_cost.items(), key=lambda x: -x[1]):
+        rule = _match_rule(name, rules)
+        by_bucket[rule["bucket"]] = by_bucket.get(rule["bucket"], 0.0) + cost
+        by_class[rule["class"]] = by_class.get(rule["class"], 0.0) + cost
+        instruments.append({"name": name, "cost": cost,
+                            "bucket": rule["bucket"], "class": rule["class"],
+                            "weight": round(cost / total, 4) if total else 0})
+
+    crypto_cost = by_class.get("crypto", 0.0)
+    return {
+        "total_cost": total,
+        "instrument_cost": instrument_cost,
+        "instruments": instruments,
+        "by_bucket": {k: round(v, 2) for k, v in by_bucket.items()},
+        "by_class": {k: round(v, 2) for k, v in by_class.items()},
+        "bucket_weights": {k: round(v / total, 4) if total else 0 for k, v in by_bucket.items()},
+        "crypto_weight": round(crypto_cost / total, 4) if total else 0,
+    }
+
+
+def flow(month, cfg):
+    """Conservative monthly Sankey: a single 'Flux du mois' source splits into
+    expense categories (transfers excluded) plus net savings. Conservative by
+    construction (source == sum of sinks), so it always balances. This is a
+    where-did-it-go view, not a gross income statement."""
+    cats = expense_by_category(month, cfg)
+    s = summary(month, cfg)
+    savings = max(s["savings_capacity"], 0)
+
+    ROOT = "Flux du mois"
+    links = [{"source": ROOT, "target": c["category"], "value": c["amount"]}
+             for c in cats if c["amount"] > 0]
+    if savings > 0:
+        links.append({"source": ROOT, "target": "Épargne", "value": round(savings, 2)})
+    names = [ROOT] + [l["target"] for l in links]
+    return {"month": month, "nodes": [{"name": n} for n in names], "links": links,
+            "savings_capacity": s["savings_capacity"]}

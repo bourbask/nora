@@ -79,9 +79,25 @@ def api_scores(month: str | None = None):
         savings_rate=s["savings_rate"],
         cfg=cfg,
     )
-    # invested score needs cost-basis per instrument (Phase 2)
+    p = fc.portfolio(cfg)
+    invested = scores.invested_health(
+        instrument_cost=p["instrument_cost"],
+        bucket_weights_actual=p["bucket_weights"],
+        crypto_weight=p["crypto_weight"],
+        cfg=cfg,
+    )
     return {"month": month, "typical_monthly_expense": typical_exp,
-            "dormant": dormant, "invested": None}
+            "dormant": dormant, "invested": invested}
+
+
+@app.get("/api/portfolio")
+def api_portfolio():
+    return fc.portfolio(load_cfg())
+
+
+@app.get("/api/flow")
+def api_flow(month: str | None = None):
+    return fc.flow(month or current_month(), load_cfg())
 
 
 @app.get("/api/strategy")

@@ -42,14 +42,20 @@ export function Dashboard() {
             }
           />
         )}
-        <Card>
-          <CardContent className="pt-6">
-            <CardTitle>Santé — argent investi</CardTitle>
-            <p className="mt-3 text-sm text-muted-foreground">
-              Score de diversification / allocation à venir (Phase 2, dérivé du coût d'acquisition).
-            </p>
-          </CardContent>
-        </Card>
+        {scores.data?.invested ? (
+          <ScoreCard
+            title="Santé — argent investi"
+            score={scores.data.invested}
+            footer={`${scores.data.invested.effective_holdings ?? "—"} lignes effectives · détail dans l'onglet Flux & Portefeuille`}
+          />
+        ) : (
+          <Card>
+            <CardContent className="pt-6">
+              <CardTitle>Santé — argent investi</CardTitle>
+              <p className="mt-3 text-sm text-muted-foreground">Chargement…</p>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       <Card>

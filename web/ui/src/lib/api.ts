@@ -30,7 +30,8 @@ export const useSummary = (month?: string) =>
 export interface HealthScore {
   score: number;
   sub: Record<string, number>;
-  coverage_months: number | null;
+  coverage_months?: number | null;
+  effective_holdings?: number;
 }
 export interface Scores {
   month: string;
@@ -53,3 +54,37 @@ export const useExpenseCategories = (month?: string) =>
         `/api/categories/expense${month ? `?month=${month}` : ""}`,
       ),
   });
+
+export interface Instrument {
+  name: string; cost: number; bucket: string; class: string; weight: number;
+}
+export interface Portfolio {
+  total_cost: number;
+  instruments: Instrument[];
+  by_bucket: Record<string, number>;
+  by_class: Record<string, number>;
+  bucket_weights: Record<string, number>;
+  crypto_weight: number;
+}
+export interface SankeyNode { name: string }
+export interface SankeyLink { source: string; target: string; value: number }
+export interface Flow {
+  month: string; nodes: SankeyNode[]; links: SankeyLink[]; savings_capacity: number;
+}
+
+export const usePortfolio = () =>
+  useQuery({ queryKey: ["portfolio"], queryFn: () => get<Portfolio>("/api/portfolio") });
+
+export const useFlow = (month?: string) =>
+  useQuery({
+    queryKey: ["flow", month ?? "current"],
+    queryFn: () => get<Flow>(`/api/flow${month ? `?month=${month}` : ""}`),
+  });
+
+// Strategy config (subset we read in the UI).
+export interface Strategy {
+  invested: { target_buckets: Record<string, number>; crypto_cap: number };
+  dormant: { safety_cushion_months: number; target_savings_rate: number };
+}
+export const useStrategy = () =>
+  useQuery({ queryKey: ["strategy"], queryFn: () => get<Strategy>("/api/strategy") });
