@@ -74,5 +74,8 @@ ui: ## Run the Vite frontend (:5173)
 	cd web/ui && npm run dev
 
 ## --- tests ---
-test: db-preflight ## Smoke tests (schema canary; unit tests TBD)
-	@echo "smoke ok — unit tests not set up yet"
+test-unit: ## Pure-logic self-checks (no docker needed)
+	python3 web/api/scores.py
+	cd providers/example && python3 test_convert.py
+test: test-unit db-preflight ## Unit self-checks + schema canary
+	@echo "all tests ok"

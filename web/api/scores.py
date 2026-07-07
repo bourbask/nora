@@ -121,6 +121,15 @@ def demo():
     dz = dormant_health(5000, 0, None, cfg)
     assert dz["sub"]["cushion"] == 100.0, dz
 
+    # Dormant: idle cash well beyond cushion+buffer is penalized via cash_drag.
+    # 20000 cash, 6*1000 cushion + 1500 buffer -> excess 12500 -> drag 100*(1-12500/20000)=37.5
+    de = dormant_health(dormant_cash=20000, avg_monthly_expense=1000, savings_rate=0.20, cfg=cfg)
+    assert de["sub"]["cash_drag"] == 37.5, de
+
+    # Invested: empty portfolio -> zeroed, no crash
+    r0 = invested_health({}, {}, 0.0, cfg)
+    assert r0["score"] == 0.0 and r0["effective_holdings"] == 0, r0
+
     print("scores.py self-check OK")
 
 
