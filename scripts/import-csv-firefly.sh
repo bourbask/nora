@@ -28,7 +28,7 @@ fi
 
 if [ ! -f "$CONVERTED_CSV" ]; then
     echo "ERROR: File not found: $CONVERTED_CSV"
-    echo "Run the converter script first to scrape and convert the data"
+    echo "Convert a provider export to the standard CSV first (see providers/README.md)"
     exit 1
 fi
 
