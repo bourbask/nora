@@ -1,0 +1,37 @@
+# Strategy config — schema with PLACEHOLDER values (public example).
+# Copy to config/strategy.yaml and put your real accounts/targets there
+# (strategy.yaml is gitignored — real amounts never get published).
+version: 1
+currency: EUR
+
+dormant:
+  safety_cushion_months: 6        # target months of expenses on liquid savings
+  checking_buffer_eur: 1500       # cash allowed idle before cash-drag penalty
+  target_savings_rate: 0.20
+  accounts:                       # asset accounts counted as "dormant"
+    - "Bank - Checking"
+    - "Bank - Savings"
+    - "Broker - Cash"
+  remunerated:                    # dormant accounts that DO earn interest (no cash-drag)
+    - "Bank - Savings"
+  recurring_charges:              # administered here (Firefly bills unused)
+    - {name: "Rent", amount: 700, freq: monthly}
+
+invested:
+  target_buckets: {high: 0.10, mid: 0.70, low: 0.20}
+  target_holdings: 15
+  crypto_cap: 0.10
+  accounts:
+    - "Broker - Securities"
+    - "Broker - Crypto"
+  instrument_rules:               # keyword -> risk bucket + asset class; first match wins
+    - {match: ["msci world", "s&p 500", "all-world", "monde"], bucket: low,  class: etf_broad}
+    - {match: ["bitcoin", "btc", "ethereum", "eth", "crypto"], bucket: high, class: crypto}
+    - {match: ["private equity", "private market"],            bucket: high, class: private}
+    - {match: ["*"],                                          bucket: mid,  class: stock}
+
+scores:
+  dormant_weights:  {cushion: 0.5, cash_drag: 0.25, savings_rate: 0.25}
+  invested_weights: {diversification: 0.4, class_align: 0.4, crypto_cap: 0.2}
+
+transfer_categories: ["Virements", "Transfert", "Transfer", "Investissement", "Dépôts", "Espèces"]
