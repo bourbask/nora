@@ -13,6 +13,7 @@ from pathlib import Path
 import yaml
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field, model_validator
 
 import firefly_client as fc
 import scores
@@ -103,3 +104,66 @@ def api_flow(month: str | None = None):
 @app.get("/api/strategy")
 def api_strategy_get():
     return load_cfg()
+
+
+# ── editable strategy knobs (accounts / instrument_rules / weights preserved) ──
+
+class RecurringCharge(BaseModel):
+    name: str
+    amount: float = Field(ge=0)
+    freq: str = "monthly"
+
+
+class DormantEdit(BaseModel):
+    safety_cushion_months: float = Field(gt=0, le=60)
+    checking_buffer_eur: float = Field(ge=0)
+    target_savings_rate: float = Field(ge=0, le=1)
+    recurring_charges: list[RecurringCharge] = []
+
+
+class Buckets(BaseModel):
+    high: float = Field(ge=0, le=1)
+    mid: float = Field(ge=0, le=1)
+    low: float = Field(ge=0, le=1)
+
+    @model_validator(mode="after")
+    def sum_to_one(self):
+        if abs((self.high + self.mid + self.low) - 1.0) > 0.01:
+            raise ValueError("target_buckets must sum to 1.0")
+        return self
+
+
+class InvestedEdit(BaseModel):
+    target_buckets: Buckets
+    target_holdings: int = Field(gt=0, le=200)
+    crypto_cap: float = Field(ge=0, le=1)
+
+
+class StrategyEdit(BaseModel):
+    dormant: DormantEdit
+    invested: InvestedEdit
+
+
+@app.put("/api/strategy")
+def api_strategy_put(edit: StrategyEdit):
+    """Update the user-facing knobs and persist to config/strategy.yaml.
+    Accounts, instrument_rules, score weights and transfer_categories are kept."""
+    if not STRATEGY_FILE.exists() and STRATEGY_EXAMPLE.exists():
+        cfg = yaml.safe_load(STRATEGY_EXAMPLE.read_text())
+    else:
+        cfg = load_cfg()
+
+    d = cfg.setdefault("dormant", {})
+    d["safety_cushion_months"] = edit.dormant.safety_cushion_months
+    d["checking_buffer_eur"] = edit.dormant.checking_buffer_eur
+    d["target_savings_rate"] = edit.dormant.target_savings_rate
+    d["recurring_charges"] = [c.model_dump() for c in edit.dormant.recurring_charges]
+
+    inv = cfg.setdefault("invested", {})
+    inv["target_buckets"] = edit.invested.target_buckets.model_dump()
+    inv["target_holdings"] = edit.invested.target_holdings
+    inv["crypto_cap"] = edit.invested.crypto_cap
+
+    STRATEGY_FILE.parent.mkdir(parents=True, exist_ok=True)
+    STRATEGY_FILE.write_text(yaml.safe_dump(cfg, allow_unicode=True, sort_keys=False))
+    return cfg

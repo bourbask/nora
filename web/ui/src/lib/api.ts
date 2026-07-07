@@ -1,8 +1,21 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 async function get<T>(path: string): Promise<T> {
   const r = await fetch(path);
   if (!r.ok) throw new Error(`${path} → ${r.status}`);
+  return r.json() as Promise<T>;
+}
+
+async function put<T>(path: string, body: unknown): Promise<T> {
+  const r = await fetch(path, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) {
+    const detail = await r.text();
+    throw new Error(`${path} → ${r.status}: ${detail}`);
+  }
   return r.json() as Promise<T>;
 }
 
@@ -81,10 +94,33 @@ export const useFlow = (month?: string) =>
     queryFn: () => get<Flow>(`/api/flow${month ? `?month=${month}` : ""}`),
   });
 
-// Strategy config (subset we read in the UI).
-export interface Strategy {
-  invested: { target_buckets: Record<string, number>; crypto_cap: number };
-  dormant: { safety_cushion_months: number; target_savings_rate: number };
+// Strategy config — editable knobs (server preserves accounts/rules/weights).
+export interface RecurringCharge { name: string; amount: number; freq: string }
+export interface StrategyEdit {
+  dormant: {
+    safety_cushion_months: number;
+    checking_buffer_eur: number;
+    target_savings_rate: number;
+    recurring_charges: RecurringCharge[];
+  };
+  invested: {
+    target_buckets: Record<string, number>;
+    target_holdings: number;
+    crypto_cap: number;
+  };
 }
 export const useStrategy = () =>
-  useQuery({ queryKey: ["strategy"], queryFn: () => get<Strategy>("/api/strategy") });
+  useQuery({ queryKey: ["strategy"], queryFn: () => get<StrategyEdit>("/api/strategy") });
+
+export const useUpdateStrategy = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (s: StrategyEdit) => put<StrategyEdit>("/api/strategy", s),
+    onSuccess: () => {
+      // strategy drives the scores → recompute everything downstream
+      qc.invalidateQueries({ queryKey: ["strategy"] });
+      qc.invalidateQueries({ queryKey: ["scores"] });
+      qc.invalidateQueries({ queryKey: ["portfolio"] });
+    },
+  });
+};
