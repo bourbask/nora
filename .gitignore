@@ -1,8 +1,12 @@
 # === Secrets & personal data — NEVER commit ===
+# (No inline comments after a path: '#' mid-line is part of the pattern, not a comment.)
 .env
-config/strategy.yaml          # real accounts/targets (use strategy.example.yaml)
-rules/categorization.yaml     # real (use categorization.example.yaml)
-importer/config/config.json   # real account→ID mapping (use config.example.json)
+# real accounts/targets (use strategy.example.yaml)
+config/strategy.yaml
+# real (use categorization.example.yaml)
+rules/categorization.yaml
+# real account -> ID mapping (use config.example.json)
+importer/config/config.json
 importer/config/import_config_*.json
 
 # Private provider plugins (concrete banks/brokers) — the personal data layer.
