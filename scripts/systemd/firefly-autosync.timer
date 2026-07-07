@@ -1,0 +1,10 @@
+[Unit]
+Description=Run NORA auto-sync three times a day
+
+[Timer]
+OnCalendar=*-*-* 08,13,19:00:00
+# Persistent: run a missed job after boot (home PC isn't 24/7).
+Persistent=true
+
+[Install]
+WantedBy=timers.target

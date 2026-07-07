@@ -1,0 +1,35 @@
+{
+  "_comment": "Firefly Data Importer config for the standard 7-column provider CSV. Copy to config.json and replace the placeholder account names + Firefly account IDs with your own (find IDs in the Firefly UI). config.json is gitignored.",
+  "version": 3,
+  "source": "ff3-importer-2.1.0",
+  "date": "Y-m-d",
+  "default_account": 1,
+  "delimiter": "comma",
+  "headers": true,
+  "rules": true,
+  "skip_form": false,
+  "add_import_tag": true,
+  "roles": ["date_transaction", "amount", "description", "account-name", "opposing-name", "category-name", "external-id"],
+  "do_mapping": [false, false, false, true, true, false, false],
+  "mapping": {
+    "3": {
+      "Bank - Checking": 1,
+      "Bank - Savings": 2,
+      "Broker - Cash": 3,
+      "Broker - Securities": 4,
+      "Broker - Crypto": 5
+    },
+    "4": {
+      "Bank - Savings": 2,
+      "Broker - Securities": 4,
+      "Broker - Crypto": 5
+    }
+  },
+  "duplicate_detection_method": "cell",
+  "unique_column_index": 6,
+  "unique_column_type": "external-id",
+  "ignore_duplicate_lines": false,
+  "ignore_duplicate_transactions": true,
+  "flow": "file",
+  "content_type": "csv"
+}

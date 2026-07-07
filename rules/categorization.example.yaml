@@ -1,0 +1,14 @@
+# Optional categorization hints shared across providers. Generic; copy to
+# categorization.yaml and extend for your own instruments (gitignored).
+
+# Keywords that mark an instrument as crypto (used by portfolio classification).
+crypto_assets:
+  - bitcoin
+  - btc
+  - ethereum
+  - eth
+  - crypto
+  - solana
+  - sol
+  - cardano
+  - ada

@@ -1,0 +1,7 @@
+[Unit]
+Description=NORA auto-sync (provider imports, non-interactive)
+
+[Service]
+Type=oneshot
+# Replace __PROJECT_DIR__ with the absolute repo path on install (see README).
+ExecStart=__PROJECT_DIR__/scripts/auto-sync.sh
