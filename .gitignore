@@ -50,3 +50,6 @@ session-*.md
 # local DB dumps (PII)
 data-backup-precutover.sql.gz
 *.sql.gz
+
+# dev server pids/logs
+.run/

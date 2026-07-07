@@ -68,9 +68,18 @@ db-shell: ## psql shell into the DB
 	$(DB)
 
 ## --- dashboard (dev) ---
-api: ## Run the FastAPI backend (:8068)
+dev: ## Run api (:8068) + ui (:5173) in background; stop with 'make dev-stop'
+	@mkdir -p .run
+	@setsid bash -c 'echo $$$$ > .run/api.pid; cd web/api && exec ./.venv/bin/uvicorn main:app --reload --port 8068' > .run/api.log 2>&1 &
+	@setsid bash -c 'echo $$$$ > .run/ui.pid; cd web/ui && exec npm run dev' > .run/ui.log 2>&1 &
+	@sleep 1; echo "api :8068 · ui :5173 · logs in .run/ · stop: make dev-stop"
+dev-stop: ## Stop both dev servers (kills reloader/vite children too)
+	@for p in .run/api.pid .run/ui.pid; do \
+	  [ -f $$p ] && kill -TERM -$$(cat $$p) 2>/dev/null; rm -f $$p; done
+	@fuser -k 8068/tcp 5173/tcp 2>/dev/null || true; echo "dev stopped"
+api: ## Run only the FastAPI backend, foreground (:8068)
 	cd web/api && ./.venv/bin/uvicorn main:app --reload --port 8068
-ui: ## Run the Vite frontend (:5173)
+ui: ## Run only the Vite frontend, foreground (:5173)
 	cd web/ui && npm run dev
 
 ## --- tests ---
