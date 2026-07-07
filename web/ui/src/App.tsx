@@ -1,7 +1,11 @@
+import { lazy, Suspense } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dashboard } from "@/pages/Dashboard";
-import { FlowPortfolio } from "@/pages/FlowPortfolio";
 import { Strategy } from "@/pages/Strategy";
+
+// Charts (ECharts) live only here — lazy-load so the initial shell stays light.
+const FlowPortfolio = lazy(() =>
+  import("@/pages/FlowPortfolio").then((m) => ({ default: m.FlowPortfolio })));
 
 export default function App() {
   return (
@@ -18,7 +22,11 @@ export default function App() {
           <TabsTrigger value="strategy">Stratégies</TabsTrigger>
         </TabsList>
         <TabsContent value="dashboard"><Dashboard /></TabsContent>
-        <TabsContent value="flow"><FlowPortfolio /></TabsContent>
+        <TabsContent value="flow">
+          <Suspense fallback={<p className="text-muted-foreground">Chargement des graphiques…</p>}>
+            <FlowPortfolio />
+          </Suspense>
+        </TabsContent>
         <TabsContent value="strategy"><Strategy /></TabsContent>
       </Tabs>
     </div>

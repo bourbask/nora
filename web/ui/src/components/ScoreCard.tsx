@@ -1,6 +1,6 @@
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
 import type { HealthScore } from "@/lib/api";
+import { scoreColor } from "@/lib/viz";
 
 const SUB_LABELS: Record<string, string> = {
   cushion: "Matelas de sécurité",
@@ -11,18 +11,12 @@ const SUB_LABELS: Record<string, string> = {
   crypto_cap: "Plafond crypto",
 };
 
-function tone(score: number) {
-  if (score >= 70) return "text-success";
-  if (score >= 40) return "text-foreground";
-  return "text-danger";
-}
-
 function Bar({ value }: { value: number }) {
   return (
     <div className="h-1.5 w-full rounded-full bg-muted">
       <div
-        className={cn("h-full rounded-full", value >= 70 ? "bg-success" : value >= 40 ? "bg-primary" : "bg-danger")}
-        style={{ width: `${Math.max(0, Math.min(100, value))}%` }}
+        className="h-full rounded-full"
+        style={{ width: `${Math.max(0, Math.min(100, value))}%`, backgroundColor: scoreColor(value) }}
       />
     </div>
   );
@@ -33,7 +27,7 @@ export function ScoreCard({ title, score, footer }: { title: string; score: Heal
     <Card>
       <CardContent className="pt-6">
         <CardTitle>{title}</CardTitle>
-        <div className={cn("mt-1 text-3xl font-bold tabular-nums", tone(score.score))}>
+        <div className="mt-1 text-3xl font-bold tabular-nums" style={{ color: scoreColor(score.score) }}>
           {score.score.toFixed(0)}
           <span className="text-base font-normal text-muted-foreground"> / 100</span>
         </div>

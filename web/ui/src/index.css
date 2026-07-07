@@ -31,7 +31,28 @@
   --danger-foreground: 0 0% 100%;
 }
 
-.dark {
+/* Follow the OS theme by default (charts read prefers-color-scheme too, so page
+   and charts stay in sync). data-theme / .dark below let an explicit toggle win. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not(.light) {
+    --background: 222 47% 11%;
+    --foreground: 210 40% 98%;
+    --card: 222 44% 14%;
+    --card-foreground: 210 40% 98%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 222 47% 11%;
+    --secondary: 217 33% 20%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217 33% 20%;
+    --muted-foreground: 215 20% 65%;
+    --border: 217 33% 24%;
+    --input: 217 33% 24%;
+    --ring: 217 91% 60%;
+  }
+}
+
+.dark,
+:root[data-theme="dark"] {
   --background: 222 47% 11%;
   --foreground: 210 40% 98%;
   --card: 222 44% 14%;

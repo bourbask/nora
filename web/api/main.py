@@ -42,8 +42,14 @@ def load_cfg():
 
 
 def current_month():
-    accts_date = fc.date.today()
-    return f"{accts_date.year}-{accts_date.month:02d}"
+    """Default reporting month = last COMPLETE month. The in-progress month has
+    partial data (near-zero expenses, nonsensical savings rate), so it must not
+    be the default view."""
+    today = fc.date.today()
+    y, m = today.year, today.month - 1
+    if m == 0:
+        y, m = y - 1, 12
+    return f"{y}-{m:02d}"
 
 
 @app.get("/api/health")
