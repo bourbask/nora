@@ -1,6 +1,6 @@
 """Pure V1 forecast math — data in, dict out, zero I/O so it is unit-testable
-offline. All money numbers deterministic; no LLM anywhere. freq: monthly only
-in V1 (non-monthly obligations deferred). ponytail: variable_typical is a macro
+offline. All money numbers deterministic; no LLM anywhere. freq supports
+monthly/quarterly/yearly, imputed on due months only. ponytail: variable_typical is a macro
 approximation (subtracts already-active obligations from the median expense);
 exact per-line history attribution is a V2 concern, ±tolerance covers it."""
 
@@ -11,16 +11,30 @@ def month_add(month, n):
     return f"{idx // 12}-{idx % 12 + 1:02d}"
 
 
+def _month_idx(month):
+    y, m = (int(x) for x in month.split("-"))
+    return y * 12 + (m - 1)
+
+
 def _active(charge, month):
-    # Legacy/partial config may omit start (ongoing charge already in history) —
-    # treat a missing start as "started forever ago" so we never KeyError.
-    if charge.get("freq", "monthly") != "monthly":
-        return False
+    # Legacy/partial config peut omettre start (charge déjà en historique) → un
+    # start absent = "démarré depuis toujours" pour le mensuel ; les cadences
+    # non-mensuelles ont besoin du start pour connaître leur phase.
     start = charge.get("start")
+    end = charge.get("end")
     if start is not None and month < start:
         return False
-    end = charge.get("end")
-    return end is None or month <= end
+    if end is not None and month > end:
+        return False
+    freq = charge.get("freq", "monthly")
+    if freq == "monthly":
+        return True
+    if start is None:
+        return False
+    step = {"quarterly": 3, "yearly": 12}.get(freq)
+    if step is None:
+        return False
+    return (_month_idx(month) - _month_idx(start)) % step == 0
 
 
 def active_obligations(charges, month):
@@ -29,8 +43,11 @@ def active_obligations(charges, month):
 
 def variable_typical(typical_expense, charges, ref_month):
     """Living cost that is NOT an already-active recurring obligation, so the
-    runway does not double-count obligations already present in history."""
-    return round(max(typical_expense - active_obligations(charges, ref_month), 0.0), 2)
+    runway does not double-count. Only monthly obligations are stripped here —
+    they sit in every month's median expense; cadenced (quarterly/yearly) charges
+    are NOT reliably in the median, so build_runway imputes them per due month."""
+    monthly = [c for c in charges if c.get("freq", "monthly") == "monthly"]
+    return round(max(typical_expense - active_obligations(monthly, ref_month), 0.0), 2)
 
 
 def expected_salary(income_series, override):

@@ -126,6 +126,51 @@ def test_reconcile_flags_bad_month():
     assert r["all_ok"] is False
 
 
+def test_active_quarterly():
+    ch = [{"name": "Q", "amount": 200.0, "freq": "quarterly", "start": "2026-01"}]
+    assert F.active_obligations(ch, "2026-01") == 200.0   # échéance
+    assert F.active_obligations(ch, "2026-02") == 0.0     # hors phase
+    assert F.active_obligations(ch, "2026-04") == 200.0   # +3 mois
+    assert F.active_obligations(ch, "2026-07") == 200.0
+
+
+def test_active_yearly():
+    ch = [{"name": "Y", "amount": 90.0, "freq": "yearly", "start": "2026-03"}]
+    assert F.active_obligations(ch, "2026-03") == 90.0
+    assert F.active_obligations(ch, "2026-04") == 0.0
+    assert F.active_obligations(ch, "2027-03") == 90.0
+
+
+def test_active_nonmonthly_needs_start():
+    ch = [{"name": "Q", "amount": 200.0, "freq": "quarterly"}]   # pas de start
+    assert F.active_obligations(ch, "2026-05") == 0.0
+
+
+def test_active_quarterly_respects_end():
+    ch = [{"name": "Q", "amount": 200.0, "freq": "quarterly", "start": "2026-01", "end": "2026-03"}]
+    assert F.active_obligations(ch, "2026-04") == 0.0    # après end, même si phase OK
+
+
+def test_runway_quarterly_ref_month_on_due_month_no_spike_inversion():
+    # ref_month ("now") happens to be a due month for a quarterly charge.
+    # variable_typical must NOT strip it (only monthly obligations are baked
+    # into the median expense) — build_runway alone imputes the per-month spike.
+    ch_q = [{"amount": 200, "freq": "quarterly", "start": "2026-01"}]
+    ref_month = "2026-07"   # due: (idx(2026-07)-idx(2026-01)) % 3 == 0
+    variable = F.variable_typical(1000.0, ch_q, ref_month)
+    assert variable == 1000.0   # unaffected by the due-month phase of ref_month
+
+    r = F.build_runway(salary=2000, charges=ch_q, variable=variable, one_offs=[],
+                       dormant_cash=0, start_month=ref_month, horizon=4)
+    nets = [m["net"] for m in r["months"]]
+    # 2026-07 (due), 2026-08, 2026-09 (not due), 2026-10 (due again)
+    assert nets == [800.0, 1000.0, 1000.0, 800.0]   # spike on due months, baseline elsewhere
+
+    # regression: monthly obligations must still be fully stripped (unaffected by fix)
+    ch_m = [{"amount": 300, "freq": "monthly", "start": "2025-01", "end": None}]
+    assert F.variable_typical(1000.0, ch_m, "2026-07") == 700.0
+
+
 if __name__ == "__main__":
     for n, f in sorted(globals().items()):
         if n.startswith("test_"):

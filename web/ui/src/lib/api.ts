@@ -19,6 +19,16 @@ async function put<T>(path: string, body: unknown): Promise<T> {
   return r.json() as Promise<T>;
 }
 
+async function post<T>(path: string, body: unknown): Promise<T> {
+  const r = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) throw new Error(`${path} → ${r.status}: ${await r.text()}`);
+  return r.json() as Promise<T>;
+}
+
 export interface Account { name: string; balance: number; cls: string }
 export interface Loan { name: string; remaining_balance: number }
 export interface NetWorth {
@@ -164,5 +174,23 @@ export const useUpdateStrategy = () => {
       qc.invalidateQueries({ queryKey: ["health"] });
       qc.invalidateQueries({ queryKey: ["savings-trend"] });
     },
+  });
+};
+
+export interface DetectedRecurrence {
+  name: string; amount: number; freq: string; start: string;
+  end: string | null; kind: string; count: number; confidence: "high" | "medium";
+}
+export const useDetectedRecurrences = () =>
+  useQuery({
+    queryKey: ["recurrences-detected"],
+    queryFn: () => get<{ candidates: DetectedRecurrence[] }>("/api/recurrences/detected"),
+  });
+
+export const useDismissRecurrence = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) => post<{ ok: boolean }>("/api/recurrences/dismiss", { name }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["recurrences-detected"] }),
   });
 };
