@@ -137,8 +137,26 @@ def api_import_status():
 @app.get("/api/recurrences/detected")
 def api_recurrences_detected():
     cfg = load_cfg()
-    existing = {c.get("name") for c in cfg.get("dormant", {}).get("recurring_charges", [])}
-    return {"candidates": recurrences.detect_recurrences(fc.withdrawals_since(12), existing)}
+    d = cfg.get("dormant", {})
+    existing = {c.get("name") for c in d.get("recurring_charges", [])}
+    dismissed = d.get("dismissed_recurrences", [])
+    return {"candidates": recurrences.detect_recurrences(
+        fc.withdrawals_since(12), existing, fc.date.today(), dismissed)}
+
+
+class DismissBody(BaseModel):
+    name: str
+
+
+@app.post("/api/recurrences/dismiss")
+def api_recurrences_dismiss(body: DismissBody):
+    cfg = load_cfg()
+    d = cfg.setdefault("dormant", {})
+    dismissed = d.setdefault("dismissed_recurrences", [])
+    if body.name not in dismissed:
+        dismissed.append(body.name)
+        STRATEGY_FILE.write_text(yaml.safe_dump(cfg, allow_unicode=True, sort_keys=False))
+    return {"ok": True}
 
 
 @app.get("/api/portfolio")
@@ -164,7 +182,7 @@ MONTH_RE = r"^\d{4}-\d{2}$"
 class RecurringCharge(BaseModel):
     name: str
     amount: float = Field(ge=0)
-    freq: str = "monthly"
+    freq: Literal["monthly", "quarterly", "yearly"] = "monthly"
     start: str = Field(pattern=MONTH_RE)
     end: Optional[str] = Field(default=None, pattern=MONTH_RE)
     kind: Literal["loan", "tax", "insurance", "rent", "subscription", "other"] = "other"
