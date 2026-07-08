@@ -43,6 +43,12 @@ def test_existing_name_excluded():
     tx = _mk("NETFLIX", ["2026-01-05", "2026-02-05", "2026-03-05"], 15.99)
     assert R.detect_recurrences(tx, {"NETFLIX"}) == []
 
+
+def test_destinationless_bucket_excluded():
+    # "?" = outflows without a destination_name, lumped together — not a real payee
+    tx = _mk("?", ["2026-01-05", "2026-02-05", "2026-03-05"], 20.0)
+    assert R.detect_recurrences(tx, set()) == []
+
 if __name__ == "__main__":
     for n, fn in sorted(globals().items()):
         if n.startswith("test_"):

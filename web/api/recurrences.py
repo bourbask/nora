@@ -25,8 +25,8 @@ def detect_recurrences(withdrawals, existing_names):
 
     out = []
     for payee, items in groups.items():
-        if payee in existing_names:
-            continue
+        if payee in existing_names or payee == "?":
+            continue  # "?" = destination-less outflows lumped together; not a real payee
         days = _distinct_days(items)
         if len(days) < 3:
             continue
