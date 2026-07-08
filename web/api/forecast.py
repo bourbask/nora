@@ -42,6 +42,31 @@ def expected_salary(income_series, override):
     return round(med, 2)
 
 
+def savings_trend(series, target_rate, band_pts):
+    band = band_pts / 100.0
+    points = []
+    for s in series:
+        rate = round(s["capacity"] / s["income"], 4) if s["income"] > 0 else 0.0
+        points.append({"month": s["month"], "rate": rate})
+    direction = "flat"
+    if len(points) >= 2:
+        d = points[-1]["rate"] - points[0]["rate"]
+        direction = "up" if d > 0.005 else "down" if d < -0.005 else "flat"
+    last = points[-1]["rate"] if points else 0.0
+    verdict = ("above" if last >= target_rate + band
+               else "below" if last <= target_rate - band else "within")
+    return {"points": points, "target": target_rate, "band": band,
+            "verdict": verdict, "direction": direction}
+
+
+def reconcile(months, tolerance):
+    out = []
+    for m in months:
+        gap = round(abs((m["income"] - m["expense"]) - m["dnw"]), 2)
+        out.append({"month": m["month"], "gap": gap, "ok": gap <= tolerance})
+    return {"months": out, "all_ok": all(x["ok"] for x in out)}
+
+
 def debt_total(charges):
     return round(sum(c["remaining_balance"] for c in charges
                      if c.get("remaining_balance")), 2)

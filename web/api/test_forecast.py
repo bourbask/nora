@@ -100,6 +100,26 @@ def test_housing_ratio():
     assert h["over_33"] is True
 
 
+def test_savings_trend():
+    series = [{"month": "2026-05", "capacity": 200, "income": 2000},
+              {"month": "2026-06", "capacity": 300, "income": 2000},
+              {"month": "2026-07", "capacity": 500, "income": 2000}]
+    t = F.savings_trend(series, target_rate=0.20, band_pts=5)
+    assert [p["rate"] for p in t["points"]] == [0.10, 0.15, 0.25]
+    assert t["direction"] == "up"                 # improving
+    assert t["verdict"] in ("above", "below", "within")
+    assert t["verdict"] == "above"                # last 0.25 > 0.20+0.05
+
+
+def test_reconcile_flags_bad_month():
+    months = [{"month": "2026-06", "income": 2000, "expense": 1500, "dnw": 500},   # gap 0
+              {"month": "2026-07", "income": 2000, "expense": 1500, "dnw": 200}]   # gap 300
+    r = F.reconcile(months, tolerance=100)
+    assert r["months"][0]["ok"] is True
+    assert r["months"][1]["ok"] is False
+    assert r["all_ok"] is False
+
+
 if __name__ == "__main__":
     for n, f in sorted(globals().items()):
         if n.startswith("test_"):

@@ -219,6 +219,22 @@ def typical_monthly_expense(ref_month, months=6):
     return round(med, 2)
 
 
+def monthly_income_series(ref_month, months=6):
+    """Type-based external income for each of the last `months` months."""
+    out = []
+    for i in range(months):
+        m = _shift_month(ref_month, i)
+        fd, ld, _ = month_bounds(m)
+        out.append(_insight_total("income", fd, ld))
+    return out
+
+
+def _month_summary_row(month, cfg):
+    s = summary(month, cfg)
+    return {"month": month, "income": s["real_income"], "expense": s["real_expense"],
+            "capacity": s["savings_capacity"], "dnw": s["savings_capacity"]}
+
+
 def expense_by_category(month, cfg, top=None):
     """Top cost centers for the month, transfer categories excluded, desc."""
     first_day, last_day, _ = month_bounds(month)
