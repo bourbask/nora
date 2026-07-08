@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Input, Label, Button } from "@/components/ui/input";
-import { useStrategy, useUpdateStrategy, useSavingsTrend, useDetectedRecurrences, useDismissRecurrence, type StrategyEdit } from "@/lib/api";
+import { useStrategy, useUpdateStrategy, useSavingsTrend, useDetectedRecurrences, useDismissRecurrence, useDrift, type StrategyEdit } from "@/lib/api";
 import { SavingsTrendChart } from "@/components/charts";
+import { cn } from "@/lib/utils";
 
 const KINDS = ["loan", "tax", "insurance", "rent", "subscription", "other"];
 const THIS_MONTH = new Date().toISOString().slice(0, 7);
@@ -19,6 +20,7 @@ interface FormState {
   savingsBand: number;
   targetHoldings: number;
   cryptoCapPct: number;
+  driftThreshold: number;
   high: number;
   mid: number;
   low: number;
@@ -37,6 +39,7 @@ function toForm(s: StrategyEdit): FormState {
     savingsBand: d.savings_band_pts ?? 5,
     targetHoldings: s.invested.target_holdings,
     cryptoCapPct: Math.round(s.invested.crypto_cap * 100),
+    driftThreshold: Math.round((s.invested.drift_threshold ?? 0.10) * 100),
     high: Math.round((s.invested.target_buckets.high ?? 0) * 100),
     mid: Math.round((s.invested.target_buckets.mid ?? 0) * 100),
     low: Math.round((s.invested.target_buckets.low ?? 0) * 100),
@@ -75,6 +78,7 @@ function toPayload(f: FormState): StrategyEdit {
       target_buckets: { high: f.high / 100, mid: f.mid / 100, low: f.low / 100 },
       target_holdings: f.targetHoldings,
       crypto_cap: f.cryptoCapPct / 100,
+      drift_threshold: f.driftThreshold / 100,
     },
   };
 }
@@ -94,6 +98,7 @@ function Field({ label, value, onChange, suffix }: {
 export function Strategy() {
   const { data } = useStrategy();
   const trend = useSavingsTrend();
+  const drift = useDrift();
   const update = useUpdateStrategy();
   const detected = useDetectedRecurrences();
   const dismiss = useDismissRecurrence();
@@ -239,6 +244,8 @@ export function Strategy() {
               onChange={(n) => set({ targetHoldings: n })} />
             <Field label="Plafond crypto" suffix="%" value={f.cryptoCapPct}
               onChange={(n) => set({ cryptoCapPct: n })} />
+            <Field label="Seuil de dérive" suffix="%" value={f.driftThreshold}
+              onChange={(n) => set({ driftThreshold: n })} />
           </div>
           <div>
             <Label>Allocation cible par risque (%)</Label>
@@ -253,6 +260,22 @@ export function Strategy() {
           </div>
         </CardContent>
       </Card>
+
+      {drift.data && (
+        <Card>
+          <CardContent className="space-y-2 pt-6">
+            <CardTitle>Dérive d'allocation</CardTitle>
+            {drift.data.alerts.length === 0 ? (
+              <p className="text-sm text-success">Allocation dans les clous ✓</p>
+            ) : drift.data.alerts.map((a, i) => (
+              <div key={i} className="flex items-center gap-2 text-sm">
+                <span className={cn("h-2 w-2 rounded-full", a.rule_id === "crypto_over_cap" ? "bg-danger" : "bg-muted-foreground")} />
+                <span className="text-muted-foreground">{a.message}</span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="flex items-center gap-3">
         <Button disabled={!bucketsOk || update.isPending}

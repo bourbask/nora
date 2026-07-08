@@ -153,6 +153,7 @@ export interface StrategyEdit {
     target_buckets: Record<string, number>;
     target_holdings: number;
     crypto_cap: number;
+    drift_threshold: number;
   };
 }
 export const useStrategy = () =>
@@ -213,3 +214,10 @@ export interface LoanAmort {
 }
 export const useLoans = () =>
   useQuery({ queryKey: ["loans"], queryFn: () => get<{ loans: LoanAmort[] }>("/api/loans") });
+
+export interface DriftAlert {
+  rule_id: string; message: string; computed_value: number; threshold: number;
+  verdict: string; bucket?: string; direction?: string; actual?: number; target?: number; cap?: number; delta?: number;
+}
+export const useDrift = () =>
+  useQuery({ queryKey: ["drift"], queryFn: () => get<{ alerts: DriftAlert[] }>("/api/drift") });
