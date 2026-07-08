@@ -87,6 +87,7 @@ test-unit: ## Pure-logic self-checks (no docker needed)
 	python3 web/api/scores.py
 	cd web/api && python3 test_forecast.py
 	cd web/api && python3 test_import_status.py
+	cd web/api && python3 test_recurrences.py
 	cd providers/example && python3 test_convert.py
 test: test-unit db-preflight ## Unit self-checks + schema canary
 	@echo "all tests ok"
