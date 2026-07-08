@@ -129,4 +129,18 @@ export function SavingsTrendChart({ trend }: {
   return <ReactECharts echarts={echarts} option={option} style={{ height: 220 }} notMerge />;
 }
 
+export function NetWorthChart({ snapshots }: { snapshots: { month: string; net_worth: number }[] }) {
+  const v = useViz();
+  const option = {
+    textStyle: { color: v.ink.secondary },
+    tooltip: { trigger: "axis", valueFormatter: (x: number) => eur(x) },
+    grid: { left: 60, right: 12, top: 24, bottom: 24 },
+    xAxis: { type: "category", data: snapshots.map((s) => s.month.slice(2)), axisLabel: { color: v.ink.muted }, axisLine: { lineStyle: { color: v.ink.axis } } },
+    yAxis: { type: "value", splitLine: { lineStyle: { color: v.ink.grid } }, axisLabel: { color: v.ink.muted } },
+    series: [{ type: "line", smooth: true, data: snapshots.map((s) => s.net_worth), itemStyle: { color: v.categorical[0] } }],
+    color: v.categorical,
+  };
+  return <ReactECharts echarts={echarts} option={option} style={{ height: 220 }} notMerge />;
+}
+
 export { SankeyChart_ as SankeyChart };

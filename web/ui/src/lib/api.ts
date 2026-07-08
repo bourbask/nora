@@ -194,3 +194,13 @@ export const useDismissRecurrence = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["recurrences-detected"] }),
   });
 };
+
+export interface Snapshot {
+  month: string; net_worth: number; net_worth_gross: number | null;
+  debt: number | null; dormant_cash: number | null; invested_cost: number | null;
+  savings_rate: number | null; dormant_score: number | null; invested_score: number | null;
+  bucket_weights: Record<string, number> | null; crypto_weight: number | null;
+  captured_at: string; backfilled: boolean;
+}
+export const useSnapshots = () =>
+  useQuery({ queryKey: ["snapshots"], queryFn: () => get<{ snapshots: Snapshot[] }>("/api/snapshots") });
