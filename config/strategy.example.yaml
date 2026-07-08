@@ -14,8 +14,13 @@ dormant:
     - "Broker - Cash"
   remunerated:                    # dormant accounts that DO earn interest (no cash-drag)
     - "Bank - Savings"
-  recurring_charges:              # administered here (Firefly bills unused)
-    - {name: "Rent", amount: 700, freq: monthly}
+  salary_override: null           # null = median of recent income; set to force a value
+  reconcile_tolerance_eur: 100    # import coherence gap tolerance (macro accuracy)
+  savings_band_pts: 5             # +/- band (points) around target savings rate
+  one_offs: []                    # dated one-time expenses {name, amount, date, kind}
+  recurring_charges:              # dated obligation ledger (Firefly bills unused)
+    - {name: Example loan, amount: 300, freq: monthly, start: "2026-01", end: "2030-01", kind: loan, remaining_balance: 12000}
+    - {name: Example rent, amount: 700, freq: monthly, start: "2024-01", end: null, kind: rent, remaining_balance: null}
 
 invested:
   target_buckets: {high: 0.10, mid: 0.70, low: 0.20}

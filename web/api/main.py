@@ -9,6 +9,7 @@ Run (dev):  uvicorn main:app --reload --port 8068   (from web/api/)
 
 import os
 from pathlib import Path
+from typing import Literal, Optional
 
 import yaml
 from fastapi import FastAPI, HTTPException
@@ -114,10 +115,30 @@ def api_strategy_get():
 
 # ── editable strategy knobs (accounts / instrument_rules / weights preserved) ──
 
+MONTH_RE = r"^\d{4}-\d{2}$"
+
+
 class RecurringCharge(BaseModel):
     name: str
     amount: float = Field(ge=0)
     freq: str = "monthly"
+    start: str = Field(pattern=MONTH_RE)
+    end: Optional[str] = Field(default=None, pattern=MONTH_RE)
+    kind: Literal["loan", "tax", "insurance", "rent", "subscription", "other"] = "other"
+    remaining_balance: Optional[float] = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def order_ok(self):
+        if self.end is not None and self.end < self.start:
+            raise ValueError("end must be >= start")
+        return self
+
+
+class OneOff(BaseModel):
+    name: str
+    amount: float
+    date: str = Field(pattern=MONTH_RE)
+    kind: Literal["loan", "tax", "insurance", "rent", "subscription", "other"] = "other"
 
 
 class DormantEdit(BaseModel):
@@ -125,6 +146,10 @@ class DormantEdit(BaseModel):
     checking_buffer_eur: float = Field(ge=0)
     target_savings_rate: float = Field(ge=0, le=1)
     recurring_charges: list[RecurringCharge] = []
+    one_offs: list[OneOff] = []
+    salary_override: Optional[float] = Field(default=None, ge=0)
+    reconcile_tolerance_eur: float = Field(default=100, ge=0)
+    savings_band_pts: float = Field(default=5, ge=0, le=100)
 
 
 class Buckets(BaseModel):
@@ -164,6 +189,10 @@ def api_strategy_put(edit: StrategyEdit):
     d["checking_buffer_eur"] = edit.dormant.checking_buffer_eur
     d["target_savings_rate"] = edit.dormant.target_savings_rate
     d["recurring_charges"] = [c.model_dump() for c in edit.dormant.recurring_charges]
+    d["one_offs"] = [o.model_dump() for o in edit.dormant.one_offs]
+    d["salary_override"] = edit.dormant.salary_override
+    d["reconcile_tolerance_eur"] = edit.dormant.reconcile_tolerance_eur
+    d["savings_band_pts"] = edit.dormant.savings_band_pts
 
     inv = cfg.setdefault("invested", {})
     inv["target_buckets"] = edit.invested.target_buckets.model_dump()
