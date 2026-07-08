@@ -77,7 +77,7 @@ export function Settings() {
               Part de la dépense sans catégorie sur {cat.data.month}. À corriger dans Firefly.
             </p>
             <div className="flex items-baseline justify-between">
-              <span className="text-2xl font-semibold">{pct(cat.data.ratio)}</span>
+              <span className="text-2xl font-semibold">{pct(cat.data.ratio)} <span className="text-sm font-normal text-muted-foreground">non catégorisé</span></span>
               <span className="text-sm text-muted-foreground">
                 {eur(cat.data.uncategorized)} / {eur(cat.data.total)}
               </span>

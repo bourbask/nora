@@ -149,7 +149,12 @@ def api_recurrences_detected():
 def api_categorization(month: str | None = None):
     month = month or current_month()
     first, last, _ = fc.month_bounds(month)
-    cov = categorization.coverage(fc._insight_by_category("expense", first, last))
+    # Exclude transfer categories like expense_by_category, so total = real
+    # expense (not internal moves) and the ratio matches the rest of the app.
+    exclude = {e.lower() for e in load_cfg().get("transfer_categories", [])}
+    cats = {k: v for k, v in fc._insight_by_category("expense", first, last).items()
+            if k.lower() not in exclude}
+    cov = categorization.coverage(cats)
     top = categorization.top_untagged(fc.untagged_withdrawals(month), 5)
     return {"month": month, **cov, "top_untagged": top}
 
