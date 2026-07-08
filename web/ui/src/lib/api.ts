@@ -166,3 +166,13 @@ export const useUpdateStrategy = () => {
     },
   });
 };
+
+export interface DetectedRecurrence {
+  name: string; amount: number; freq: string; start: string;
+  end: string | null; kind: string; count: number; confidence: "high" | "medium";
+}
+export const useDetectedRecurrences = () =>
+  useQuery({
+    queryKey: ["recurrences-detected"],
+    queryFn: () => get<{ candidates: DetectedRecurrence[] }>("/api/recurrences/detected"),
+  });

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Input, Label, Button } from "@/components/ui/input";
-import { useStrategy, useUpdateStrategy, useSavingsTrend, type StrategyEdit } from "@/lib/api";
+import { useStrategy, useUpdateStrategy, useSavingsTrend, useDetectedRecurrences, type StrategyEdit } from "@/lib/api";
 import { SavingsTrendChart } from "@/components/charts";
 
 const KINDS = ["loan", "tax", "insurance", "rent", "subscription", "other"];
@@ -93,12 +93,18 @@ export function Strategy() {
   const { data } = useStrategy();
   const trend = useSavingsTrend();
   const update = useUpdateStrategy();
+  const detected = useDetectedRecurrences();
   const [f, setF] = useState<FormState | null>(null);
 
   useEffect(() => { if (data) setF(toForm(data)); }, [data]);
   if (!f) return <p className="text-muted-foreground">Chargement…</p>;
 
   const set = (patch: Partial<FormState>) => setF({ ...f, ...patch });
+  const addDetected = (c: { name: string; amount: number; start: string }) =>
+    set({ charges: [...f.charges, {
+      name: c.name, amount: c.amount, start: c.start,
+      end: null, kind: "other", remaining_balance: null,
+    }] });
   const updCharge = (i: number, patch: Partial<Charge>) => {
     const ch = [...f.charges]; ch[i] = { ...ch[i], ...patch }; set({ charges: ch });
   };
@@ -166,6 +172,26 @@ export function Strategy() {
                 onClick={() => set({ charges: [...f.charges, { name: "", amount: 0, start: THIS_MONTH, end: null, kind: "other", remaining_balance: null }] })}>
                 + Ajouter une obligation
               </Button>
+              {detected.data && detected.data.candidates
+                .filter((c) => !f.charges.some((ch) => ch.name === c.name)).length > 0 && (
+                <div className="mt-4 space-y-1">
+                  <Label>Récurrences détectées (à confirmer)</Label>
+                  {detected.data.candidates
+                    .filter((c) => !f.charges.some((ch) => ch.name === c.name))
+                    .map((c) => (
+                      <div key={c.name} className="flex items-center justify-between rounded-md border px-3 py-1.5 text-sm">
+                        <span className="flex items-center gap-2">
+                          <span className={c.confidence === "high" ? "text-success" : "text-muted-foreground"}>●</span>
+                          {c.name}
+                        </span>
+                        <span className="flex items-center gap-3 text-muted-foreground">
+                          <span>{c.amount} € · vu {c.count}× depuis {c.start}</span>
+                          <Button type="button" onClick={() => addDetected(c)}>Ajouter</Button>
+                        </span>
+                      </div>
+                    ))}
+                </div>
+              )}
             </div>
           </div>
 

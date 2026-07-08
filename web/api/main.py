@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field, model_validator
 
 import firefly_client as fc
 import import_status
+import recurrences
 import scores
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -131,6 +132,13 @@ def api_savings_trend():
 def api_import_status():
     text = AUTO_SYNC_LOG.read_text() if AUTO_SYNC_LOG.exists() else ""
     return {"sources": import_status.last_per_source(text)}
+
+
+@app.get("/api/recurrences/detected")
+def api_recurrences_detected():
+    cfg = load_cfg()
+    existing = {c.get("name") for c in cfg.get("dormant", {}).get("recurring_charges", [])}
+    return {"candidates": recurrences.detect_recurrences(fc.withdrawals_since(12), existing)}
 
 
 @app.get("/api/portfolio")
