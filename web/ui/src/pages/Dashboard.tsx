@@ -1,10 +1,10 @@
 import { StatTile } from "@/components/StatTile";
 import { ScoreCard } from "@/components/ScoreCard";
 import { GuardrailBanner } from "@/components/GuardrailBanner";
-import { RunwayChart } from "@/components/charts";
+import { RunwayChart, NetWorthChart } from "@/components/charts";
 import {
   useNetWorth, useSummary, useExpenseCategories, useScores,
-  useGuardrail, useRunway, useRemaining, useHousing,
+  useGuardrail, useRunway, useRemaining, useHousing, useSnapshots,
 } from "@/lib/api";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { eur, pct } from "@/lib/utils";
@@ -18,6 +18,7 @@ export function Dashboard() {
   const runway = useRunway();
   const remaining = useRemaining();
   const housing = useHousing();
+  const snaps = useSnapshots();
 
   if (nw.isLoading || sum.isLoading) return <p className="text-muted-foreground">Chargement…</p>;
   if (nw.error) return <p className="text-danger">Erreur API : {String(nw.error)}</p>;
@@ -45,6 +46,17 @@ export function Dashboard() {
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardContent className="pt-6">
+          <CardTitle>Valeur nette dans le temps</CardTitle>
+          {snaps.data && snaps.data.snapshots.length >= 2 ? (
+            <NetWorthChart snapshots={snaps.data.snapshots} />
+          ) : (
+            <p className="mt-2 text-sm text-muted-foreground">Pas encore d'historique (premier snapshot au prochain run mensuel).</p>
+          )}
+        </CardContent>
+      </Card>
 
       {remaining.data && (
         <div className="grid gap-4 sm:grid-cols-2">

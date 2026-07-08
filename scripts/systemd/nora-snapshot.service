@@ -1,0 +1,7 @@
+[Unit]
+Description=Capture NORA monthly strategy snapshot
+
+[Service]
+Type=oneshot
+WorkingDirectory=__PROJECT_DIR__
+ExecStart=__PROJECT_DIR__/.venv/bin/python __PROJECT_DIR__/scripts/capture-snapshot.py

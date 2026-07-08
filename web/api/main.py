@@ -21,6 +21,7 @@ import import_status
 import recurrences
 import scores
 import categorization
+import snapshots
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONFIG_DIR = Path(os.environ.get("NORA_CONFIG_DIR", REPO_ROOT / "config"))
@@ -157,6 +158,14 @@ def api_categorization(month: str | None = None):
     cov = categorization.coverage(cats)
     top = categorization.top_untagged(fc.untagged_withdrawals(month), 5)
     return {"month": month, **cov, "top_untagged": top}
+
+
+SNAPSHOTS_FILE = DATA_DIR / "snapshots.json"
+
+
+@app.get("/api/snapshots")
+def api_snapshots():
+    return {"snapshots": snapshots.to_series(snapshots.load(SNAPSHOTS_FILE))}
 
 
 class DismissBody(BaseModel):
