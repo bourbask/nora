@@ -116,6 +116,11 @@ export const useHousing = () => useQuery({ queryKey: ["housing"], queryFn: () =>
 export const useHealth = () => useQuery({ queryKey: ["health"], queryFn: () => get<{ reconcile: Reconcile }>("/api/health") });
 export const useSavingsTrend = () => useQuery({ queryKey: ["savings-trend"], queryFn: () => get<SavingsTrend>("/api/savings-trend") });
 
+export interface ImportEvent { timestamp: string | null; event: string | null; transactions: number | null }
+export interface ImportStatus { sources: Record<string, ImportEvent> }
+export const useImportStatus = () =>
+  useQuery({ queryKey: ["import-status"], queryFn: () => get<ImportStatus>("/api/import-status") });
+
 // Strategy config — editable knobs (server preserves accounts/rules/weights).
 export interface RecurringCharge {
   name: string; amount: number; freq: string;
