@@ -20,8 +20,10 @@ async function put<T>(path: string, body: unknown): Promise<T> {
 }
 
 export interface Account { name: string; balance: number; cls: string }
+export interface Loan { name: string; remaining_balance: number }
 export interface NetWorth {
-  total: number; dormant: number; invested: number; unclassified: number;
+  total: number; net_of_debt: number; debt: number; loans: Loan[];
+  dormant: number; invested: number; unclassified: number;
   accounts: Account[];
 }
 export interface Summary {
@@ -94,14 +96,42 @@ export const useFlow = (month?: string) =>
     queryFn: () => get<Flow>(`/api/flow${month ? `?month=${month}` : ""}`),
   });
 
+// ── forecast (V1 runway) ──
+export interface RunwayMonth { month: string; net: number; balance: number }
+export interface Runway {
+  ref_month: string; salary: number; variable_typical: number;
+  months: RunwayMonth[]; trough: { month: string; balance: number };
+  positive_month: string | null;
+}
+export interface Guardrail { invest_ok: boolean; coverage_months: number | null; reason: string; rule_refs: string[] }
+export interface Remaining { ref_month: string; reste_a_vivre: number; reste_a_investir: number }
+export interface Housing { ratio: number; over_33: boolean }
+export interface Reconcile { months: { month: string; gap: number; ok: boolean }[]; all_ok: boolean; unclassified_accounts: string[] }
+export interface SavingsTrend { points: { month: string; rate: number }[]; target: number; band: number; verdict: string; direction: string }
+
+export const useRunway = () => useQuery({ queryKey: ["runway"], queryFn: () => get<Runway>("/api/runway") });
+export const useGuardrail = () => useQuery({ queryKey: ["guardrail"], queryFn: () => get<Guardrail>("/api/guardrail") });
+export const useRemaining = () => useQuery({ queryKey: ["remaining"], queryFn: () => get<Remaining>("/api/remaining") });
+export const useHousing = () => useQuery({ queryKey: ["housing"], queryFn: () => get<Housing>("/api/housing") });
+export const useHealth = () => useQuery({ queryKey: ["health"], queryFn: () => get<{ reconcile: Reconcile }>("/api/health") });
+export const useSavingsTrend = () => useQuery({ queryKey: ["savings-trend"], queryFn: () => get<SavingsTrend>("/api/savings-trend") });
+
 // Strategy config — editable knobs (server preserves accounts/rules/weights).
-export interface RecurringCharge { name: string; amount: number; freq: string }
+export interface RecurringCharge {
+  name: string; amount: number; freq: string;
+  start: string; end: string | null; kind: string; remaining_balance: number | null;
+}
+export interface OneOff { name: string; amount: number; date: string; kind: string }
 export interface StrategyEdit {
   dormant: {
     safety_cushion_months: number;
     checking_buffer_eur: number;
     target_savings_rate: number;
     recurring_charges: RecurringCharge[];
+    one_offs: OneOff[];
+    salary_override: number | null;
+    reconcile_tolerance_eur: number;
+    savings_band_pts: number;
   };
   invested: {
     target_buckets: Record<string, number>;
@@ -121,6 +151,13 @@ export const useUpdateStrategy = () => {
       qc.invalidateQueries({ queryKey: ["strategy"] });
       qc.invalidateQueries({ queryKey: ["scores"] });
       qc.invalidateQueries({ queryKey: ["portfolio"] });
+      qc.invalidateQueries({ queryKey: ["runway"] });
+      qc.invalidateQueries({ queryKey: ["guardrail"] });
+      qc.invalidateQueries({ queryKey: ["remaining"] });
+      qc.invalidateQueries({ queryKey: ["housing"] });
+      qc.invalidateQueries({ queryKey: ["networth"] });
+      qc.invalidateQueries({ queryKey: ["health"] });
+      qc.invalidateQueries({ queryKey: ["savings-trend"] });
     },
   });
 };
