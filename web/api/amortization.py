@@ -14,7 +14,9 @@ def payoff_month(start_month, payoff_months):
 def schedule(balance, monthly_payment, annual_rate, max_months=600):
     r = annual_rate / 12.0
     first_interest = balance * r
-    if monthly_payment <= first_interest and r > 0:
+    # payment ≤ 0 (or ≤ first month's interest at rate>0) → never pays off; guard
+    # the zero-rate branch's division and the loop against non-terminating input.
+    if monthly_payment <= 0 or (monthly_payment <= first_interest and r > 0):
         return {"payoff_months": None, "total_interest": 0.0,
                 "total_principal": 0.0, "never_amortizes": True, "schedule": []}
     if annual_rate == 0:

@@ -17,6 +17,11 @@ def test_payment_too_low_never_amortizes():
     assert r["never_amortizes"] is True and r["payoff_months"] is None
     assert len(r["schedule"]) == 0
 
+def test_zero_payment_never_amortizes_no_crash():
+    r = A.schedule(1000.0, 0.0, 0.0)          # payment 0 must not ZeroDivisionError
+    assert r["never_amortizes"] is True and r["payoff_months"] is None
+
+
 def test_payoff_month():
     assert A.payoff_month("2026-01", 5) == "2026-06"
     assert A.payoff_month("2026-01", None) is None
