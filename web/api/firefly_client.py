@@ -18,6 +18,8 @@ from pathlib import Path
 
 import httpx
 
+import forecast as F
+
 FIREFLY_BASE_URL = os.environ.get("FIREFLY_BASE_URL", "http://localhost:8066")
 
 
@@ -348,3 +350,68 @@ def flow(month, cfg):
     names = [ROOT] + [l["target"] for l in links]
     return {"month": month, "nodes": [{"name": n} for n in names], "links": links,
             "savings_capacity": s["savings_capacity"]}
+
+
+# ── forecast fetch-wrappers (assemble inputs, delegate math to forecast.py) ───
+
+def _now_month():
+    t = date.today()
+    return f"{t.year}-{t.month:02d}"
+
+
+def _forecast_inputs(cfg, ref_month):
+    d = cfg.get("dormant", {})
+    charges = d.get("recurring_charges", [])
+    one_offs = d.get("one_offs", [])
+    salary = F.expected_salary(monthly_income_series(ref_month, 6), d.get("salary_override"))
+    typical = typical_monthly_expense(ref_month, 6)
+    variable = F.variable_typical(typical, charges, ref_month)
+    dormant_cash = networth(cfg)["dormant"]
+    return d, charges, one_offs, salary, variable, dormant_cash
+
+
+def runway_view(cfg, horizon=12):
+    ref = _now_month()
+    _, charges, one_offs, salary, variable, cash = _forecast_inputs(cfg, ref)
+    r = F.build_runway(salary, charges, variable, one_offs, cash, ref, horizon)
+    return {"ref_month": ref, "salary": salary, "variable_typical": variable, **r}
+
+
+def guardrail_view(cfg):
+    ref = _now_month()
+    d, charges, one_offs, salary, variable, cash = _forecast_inputs(cfg, ref)
+    r = F.build_runway(salary, charges, variable, one_offs, cash, ref, 12)
+    monthly_cost = F.active_obligations(charges, ref) + variable
+    return F.guardrail(cash, monthly_cost, d.get("safety_cushion_months", 6), r)
+
+
+def remaining_view(cfg):
+    ref = _now_month()
+    d, charges, one_offs, salary, variable, cash = _forecast_inputs(cfg, ref)
+    g = guardrail_view(cfg)
+    return {"ref_month": ref,
+            **F.remaining(salary, charges, variable, ref,
+                          d.get("checking_buffer_eur", 0),
+                          d.get("target_savings_rate", 0.20), g["invest_ok"])}
+
+
+def housing_view(cfg):
+    ref = _now_month()
+    d, charges, _, salary, _, _ = _forecast_inputs(cfg, ref)
+    return F.housing_ratio(charges, salary, ref)
+
+
+def savings_trend_view(cfg, months=6):
+    ref = _now_month()
+    series = [_month_summary_row(_shift_month(ref, i), cfg) for i in range(months)][::-1]
+    d = cfg.get("dormant", {})
+    return F.savings_trend(series, d.get("target_savings_rate", 0.20), d.get("savings_band_pts", 5))
+
+
+def reconcile_view(cfg, months=6):
+    ref = _now_month()
+    rows = [_month_summary_row(_shift_month(ref, i), cfg) for i in range(months)][::-1]
+    d = cfg.get("dormant", {})
+    res = F.reconcile(rows, d.get("reconcile_tolerance_eur", 100))
+    unclassified = [a["name"] for a in networth(cfg)["accounts"] if a["cls"] == "unclassified"]
+    return {**res, "unclassified_accounts": unclassified}

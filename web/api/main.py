@@ -55,7 +55,8 @@ def current_month():
 
 @app.get("/api/health")
 def health():
-    return {"ok": True, "firefly": fc.FIREFLY_BASE_URL}
+    return {"ok": True, "firefly": fc.FIREFLY_BASE_URL,
+            "reconcile": fc.reconcile_view(load_cfg())}
 
 
 @app.get("/api/networth")
@@ -96,6 +97,31 @@ def api_scores(month: str | None = None):
     )
     return {"month": month, "typical_monthly_expense": typical_exp,
             "dormant": dormant, "invested": invested}
+
+
+@app.get("/api/runway")
+def api_runway(horizon: int = 12):
+    return fc.runway_view(load_cfg(), horizon)
+
+
+@app.get("/api/guardrail")
+def api_guardrail():
+    return fc.guardrail_view(load_cfg())
+
+
+@app.get("/api/remaining")
+def api_remaining():
+    return fc.remaining_view(load_cfg())
+
+
+@app.get("/api/housing")
+def api_housing():
+    return fc.housing_view(load_cfg())
+
+
+@app.get("/api/savings-trend")
+def api_savings_trend():
+    return fc.savings_trend_view(load_cfg())
 
 
 @app.get("/api/portfolio")

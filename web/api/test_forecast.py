@@ -17,6 +17,12 @@ def test_active_obligations():
     assert F.active_obligations(ch, "2027-03") == 360.0   # tax ended, loan+insurance
 
 
+def test_active_obligations_legacy_no_start():
+    # legacy config (no start/end) = ongoing charge, always active, never crashes
+    ch = [{"amount": 740.39, "freq": "monthly"}]
+    assert F.active_obligations(ch, "2026-08") == 740.39
+
+
 def test_variable_typical():
     ch = [{"amount": 300, "freq": "monthly", "start": "2025-01", "end": None}]  # long-running -> in history
     # typical total expense 1000 includes the 300 obligation -> variable = 700

@@ -12,9 +12,12 @@ def month_add(month, n):
 
 
 def _active(charge, month):
+    # Legacy/partial config may omit start (ongoing charge already in history) —
+    # treat a missing start as "started forever ago" so we never KeyError.
     if charge.get("freq", "monthly") != "monthly":
         return False
-    if month < charge["start"]:
+    start = charge.get("start")
+    if start is not None and month < start:
         return False
     end = charge.get("end")
     return end is None or month <= end
