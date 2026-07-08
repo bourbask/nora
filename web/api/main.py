@@ -16,6 +16,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, model_validator
 
+import amortization
 import firefly_client as fc
 import import_status
 import recurrences
@@ -183,6 +184,29 @@ def api_strategy_get():
     return load_cfg()
 
 
+@app.get("/api/loans")
+def api_loans():
+    cfg = load_cfg()
+    out = []
+    for c in cfg.get("dormant", {}).get("recurring_charges", []):
+        if c.get("kind") != "loan" or not c.get("remaining_balance"):
+            continue
+        bal = c["remaining_balance"]
+        pay = c.get("amount") or 0
+        rate = c.get("rate")
+        if rate is not None and pay > 0:
+            s = amortization.schedule(bal, pay, rate)
+            out.append({"name": c["name"], "balance": bal, "payment": pay, "rate": rate,
+                        "payoff_month": amortization.payoff_month(c.get("start"), s["payoff_months"]),
+                        "total_interest": s["total_interest"],
+                        "never_amortizes": s["never_amortizes"], "needs_rate": False})
+        else:
+            out.append({"name": c["name"], "balance": bal, "payment": pay, "rate": rate,
+                        "payoff_month": None, "total_interest": None,
+                        "never_amortizes": False, "needs_rate": rate is None})
+    return {"loans": out}
+
+
 # ── editable strategy knobs (accounts / instrument_rules / weights preserved) ──
 
 MONTH_RE = r"^\d{4}-\d{2}$"
@@ -196,6 +220,7 @@ class RecurringCharge(BaseModel):
     end: Optional[str] = Field(default=None, pattern=MONTH_RE)
     kind: Literal["loan", "tax", "insurance", "rent", "subscription", "other"] = "other"
     remaining_balance: Optional[float] = Field(default=None, ge=0)
+    rate: Optional[float] = Field(default=None, ge=0, le=1)
 
     @model_validator(mode="after")
     def order_ok(self):
