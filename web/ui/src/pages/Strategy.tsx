@@ -1,31 +1,53 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Input, Label, Button } from "@/components/ui/input";
-import { useStrategy, useUpdateStrategy, type StrategyEdit } from "@/lib/api";
+import { useStrategy, useUpdateStrategy, useSavingsTrend, type StrategyEdit } from "@/lib/api";
+import { SavingsTrendChart } from "@/components/charts";
+
+const KINDS = ["loan", "tax", "insurance", "rent", "subscription", "other"];
+const THIS_MONTH = new Date().toISOString().slice(0, 7);
+
+interface Charge { name: string; amount: number; start: string; end: string | null; kind: string; remaining_balance: number | null }
+interface OneOffForm { name: string; amount: number; date: string; kind: string }
 
 interface FormState {
   cushionMonths: number;
   buffer: number;
   savingsRatePct: number;
+  salaryOverride: number | null;
+  reconcileTol: number;
+  savingsBand: number;
   targetHoldings: number;
   cryptoCapPct: number;
   high: number;
   mid: number;
   low: number;
-  charges: { name: string; amount: number }[];
+  charges: Charge[];
+  oneOffs: OneOffForm[];
 }
 
 function toForm(s: StrategyEdit): FormState {
+  const d = s.dormant;
   return {
-    cushionMonths: s.dormant.safety_cushion_months,
-    buffer: s.dormant.checking_buffer_eur,
-    savingsRatePct: Math.round(s.dormant.target_savings_rate * 100),
+    cushionMonths: d.safety_cushion_months,
+    buffer: d.checking_buffer_eur,
+    savingsRatePct: Math.round(d.target_savings_rate * 100),
+    salaryOverride: d.salary_override ?? null,
+    reconcileTol: d.reconcile_tolerance_eur ?? 100,
+    savingsBand: d.savings_band_pts ?? 5,
     targetHoldings: s.invested.target_holdings,
     cryptoCapPct: Math.round(s.invested.crypto_cap * 100),
     high: Math.round((s.invested.target_buckets.high ?? 0) * 100),
     mid: Math.round((s.invested.target_buckets.mid ?? 0) * 100),
     low: Math.round((s.invested.target_buckets.low ?? 0) * 100),
-    charges: (s.dormant.recurring_charges ?? []).map((c) => ({ name: c.name, amount: c.amount })),
+    charges: (d.recurring_charges ?? []).map((c) => ({
+      name: c.name, amount: c.amount,
+      start: c.start ?? THIS_MONTH, end: c.end ?? null,
+      kind: c.kind ?? "other", remaining_balance: c.remaining_balance ?? null,
+    })),
+    oneOffs: (d.one_offs ?? []).map((o) => ({
+      name: o.name, amount: o.amount, date: o.date ?? THIS_MONTH, kind: o.kind ?? "other",
+    })),
   };
 }
 
@@ -35,7 +57,17 @@ function toPayload(f: FormState): StrategyEdit {
       safety_cushion_months: f.cushionMonths,
       checking_buffer_eur: f.buffer,
       target_savings_rate: f.savingsRatePct / 100,
-      recurring_charges: f.charges.filter((c) => c.name).map((c) => ({ ...c, freq: "monthly" })),
+      salary_override: f.salaryOverride,
+      reconcile_tolerance_eur: f.reconcileTol,
+      savings_band_pts: f.savingsBand,
+      recurring_charges: f.charges.filter((c) => c.name).map((c) => ({
+        name: c.name, amount: c.amount, freq: "monthly",
+        start: c.start || THIS_MONTH, end: c.end || null,
+        kind: c.kind || "other", remaining_balance: c.remaining_balance,
+      })),
+      one_offs: f.oneOffs.filter((o) => o.name).map((o) => ({
+        name: o.name, amount: o.amount, date: o.date || THIS_MONTH, kind: o.kind || "other",
+      })),
     },
     invested: {
       target_buckets: { high: f.high / 100, mid: f.mid / 100, low: f.low / 100 },
@@ -59,6 +91,7 @@ function Field({ label, value, onChange, suffix }: {
 
 export function Strategy() {
   const { data } = useStrategy();
+  const trend = useSavingsTrend();
   const update = useUpdateStrategy();
   const [f, setF] = useState<FormState | null>(null);
 
@@ -66,11 +99,33 @@ export function Strategy() {
   if (!f) return <p className="text-muted-foreground">Chargement…</p>;
 
   const set = (patch: Partial<FormState>) => setF({ ...f, ...patch });
+  const updCharge = (i: number, patch: Partial<Charge>) => {
+    const ch = [...f.charges]; ch[i] = { ...ch[i], ...patch }; set({ charges: ch });
+  };
+  const updOneOff = (i: number, patch: Partial<OneOffForm>) => {
+    const oo = [...f.oneOffs]; oo[i] = { ...oo[i], ...patch }; set({ oneOffs: oo });
+  };
   const bucketSum = f.high + f.mid + f.low;
   const bucketsOk = Math.abs(bucketSum - 100) < 1;
 
   return (
     <div className="space-y-6">
+      {trend.data && (
+        <Card>
+          <CardContent className="space-y-2 pt-6">
+            <CardTitle>Tendance — capacité d'épargne vs cible</CardTitle>
+            <SavingsTrendChart trend={trend.data} />
+            <p className="text-sm text-muted-foreground">
+              {trend.data.verdict === "above" ? "Au-dessus de la cible"
+                : trend.data.verdict === "below" ? "Sous la cible" : "Dans la bande cible"}
+              {" · "}
+              {trend.data.direction === "up" ? "en amélioration ▲"
+                : trend.data.direction === "down" ? "en baisse ▼" : "stable ▬"}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardContent className="space-y-4 pt-6">
           <CardTitle>Argent dormant</CardTitle>
@@ -81,23 +136,58 @@ export function Strategy() {
               onChange={(n) => set({ buffer: n })} />
             <Field label="Taux d'épargne cible" suffix="%" value={f.savingsRatePct}
               onChange={(n) => set({ savingsRatePct: n })} />
+            <div>
+              <Label>Salaire de référence (€, vide = médiane auto)</Label>
+              <Input type="number" className="mt-1" value={f.salaryOverride ?? ""}
+                onChange={(e) => set({ salaryOverride: e.target.value === "" ? null : (parseFloat(e.target.value) || 0) })} />
+            </div>
           </div>
+
           <div>
-            <Label>Charges récurrentes</Label>
+            <Label>Obligations récurrentes (montant/mois, période, type, solde restant si prêt)</Label>
             <div className="mt-2 space-y-2">
               {f.charges.map((c, i) => (
-                <div key={i} className="flex gap-2">
-                  <Input placeholder="Nom" value={c.name}
-                    onChange={(e) => { const ch = [...f.charges]; ch[i] = { ...c, name: e.target.value }; set({ charges: ch }); }} />
-                  <Input type="number" placeholder="€/mois" value={c.amount} className="w-32"
-                    onChange={(e) => { const ch = [...f.charges]; ch[i] = { ...c, amount: parseFloat(e.target.value) || 0 }; set({ charges: ch }); }} />
+                <div key={i} className="grid grid-cols-[1fr_90px_110px_100px_100px_90px_36px] gap-2 items-center">
+                  <Input placeholder="Nom" value={c.name} onChange={(e) => updCharge(i, { name: e.target.value })} />
+                  <Input type="number" placeholder="€/mois" value={c.amount} onChange={(e) => updCharge(i, { amount: parseFloat(e.target.value) || 0 })} />
+                  <select className="h-9 rounded-md border bg-background px-2 text-sm" value={c.kind}
+                    onChange={(e) => updCharge(i, { kind: e.target.value })}>
+                    {KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
+                  </select>
+                  <Input type="month" value={c.start} onChange={(e) => updCharge(i, { start: e.target.value })} />
+                  <Input type="month" value={c.end ?? ""} onChange={(e) => updCharge(i, { end: e.target.value || null })} />
+                  <Input type="number" placeholder="solde" value={c.remaining_balance ?? ""}
+                    onChange={(e) => updCharge(i, { remaining_balance: e.target.value === "" ? null : (parseFloat(e.target.value) || 0) })} />
                   <Button className="bg-secondary text-secondary-foreground"
                     onClick={() => set({ charges: f.charges.filter((_, j) => j !== i) })}>✕</Button>
                 </div>
               ))}
               <Button className="bg-secondary text-secondary-foreground"
-                onClick={() => set({ charges: [...f.charges, { name: "", amount: 0 }] })}>
-                + Ajouter une charge
+                onClick={() => set({ charges: [...f.charges, { name: "", amount: 0, start: THIS_MONTH, end: null, kind: "other", remaining_balance: null }] })}>
+                + Ajouter une obligation
+              </Button>
+            </div>
+          </div>
+
+          <div>
+            <Label>Dépenses ponctuelles (one-shot daté)</Label>
+            <div className="mt-2 space-y-2">
+              {f.oneOffs.map((o, i) => (
+                <div key={i} className="grid grid-cols-[1fr_90px_110px_100px_36px] gap-2 items-center">
+                  <Input placeholder="Nom" value={o.name} onChange={(e) => updOneOff(i, { name: e.target.value })} />
+                  <Input type="number" placeholder="€" value={o.amount} onChange={(e) => updOneOff(i, { amount: parseFloat(e.target.value) || 0 })} />
+                  <select className="h-9 rounded-md border bg-background px-2 text-sm" value={o.kind}
+                    onChange={(e) => updOneOff(i, { kind: e.target.value })}>
+                    {KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
+                  </select>
+                  <Input type="month" value={o.date} onChange={(e) => updOneOff(i, { date: e.target.value })} />
+                  <Button className="bg-secondary text-secondary-foreground"
+                    onClick={() => set({ oneOffs: f.oneOffs.filter((_, j) => j !== i) })}>✕</Button>
+                </div>
+              ))}
+              <Button className="bg-secondary text-secondary-foreground"
+                onClick={() => set({ oneOffs: [...f.oneOffs, { name: "", amount: 0, date: THIS_MONTH, kind: "other" }] })}>
+                + Ajouter une dépense ponctuelle
               </Button>
             </div>
           </div>
