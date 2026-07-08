@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Input, Label, Button } from "@/components/ui/input";
-import { useStrategy, useUpdateStrategy, useSavingsTrend, useDetectedRecurrences, type StrategyEdit } from "@/lib/api";
+import { useStrategy, useUpdateStrategy, useSavingsTrend, useDetectedRecurrences, useDismissRecurrence, type StrategyEdit } from "@/lib/api";
 import { SavingsTrendChart } from "@/components/charts";
 
 const KINDS = ["loan", "tax", "insurance", "rent", "subscription", "other"];
 const THIS_MONTH = new Date().toISOString().slice(0, 7);
 
-interface Charge { name: string; amount: number; start: string; end: string | null; kind: string; remaining_balance: number | null }
+interface Charge { name: string; amount: number; freq: string; start: string; end: string | null; kind: string; remaining_balance: number | null }
 interface OneOffForm { name: string; amount: number; date: string; kind: string }
 
 interface FormState {
@@ -41,7 +41,7 @@ function toForm(s: StrategyEdit): FormState {
     mid: Math.round((s.invested.target_buckets.mid ?? 0) * 100),
     low: Math.round((s.invested.target_buckets.low ?? 0) * 100),
     charges: (d.recurring_charges ?? []).map((c) => ({
-      name: c.name, amount: c.amount,
+      name: c.name, amount: c.amount, freq: c.freq ?? "monthly",
       start: c.start ?? THIS_MONTH, end: c.end ?? null,
       kind: c.kind ?? "other", remaining_balance: c.remaining_balance ?? null,
     })),
@@ -61,7 +61,7 @@ function toPayload(f: FormState): StrategyEdit {
       reconcile_tolerance_eur: f.reconcileTol,
       savings_band_pts: f.savingsBand,
       recurring_charges: f.charges.filter((c) => c.name).map((c) => ({
-        name: c.name, amount: c.amount, freq: "monthly",
+        name: c.name, amount: c.amount, freq: c.freq || "monthly",
         start: c.start || THIS_MONTH, end: c.end || null,
         kind: c.kind || "other", remaining_balance: c.remaining_balance,
       })),
@@ -94,15 +94,16 @@ export function Strategy() {
   const trend = useSavingsTrend();
   const update = useUpdateStrategy();
   const detected = useDetectedRecurrences();
+  const dismiss = useDismissRecurrence();
   const [f, setF] = useState<FormState | null>(null);
 
   useEffect(() => { if (data) setF(toForm(data)); }, [data]);
   if (!f) return <p className="text-muted-foreground">Chargement…</p>;
 
   const set = (patch: Partial<FormState>) => setF({ ...f, ...patch });
-  const addDetected = (c: { name: string; amount: number; start: string }) =>
+  const addDetected = (c: { name: string; amount: number; start: string; freq: string }) =>
     set({ charges: [...f.charges, {
-      name: c.name, amount: c.amount, start: c.start,
+      name: c.name, amount: c.amount, freq: c.freq, start: c.start,
       end: null, kind: "other", remaining_balance: null,
     }] });
   const updCharge = (i: number, patch: Partial<Charge>) => {
@@ -153,12 +154,16 @@ export function Strategy() {
             <Label>Obligations récurrentes (montant/mois, période, type, solde restant si prêt)</Label>
             <div className="mt-2 space-y-2">
               {f.charges.map((c, i) => (
-                <div key={i} className="grid grid-cols-[1fr_90px_110px_100px_100px_90px_36px] gap-2 items-center">
+                <div key={i} className="grid grid-cols-[1fr_90px_110px_110px_100px_100px_90px_36px] gap-2 items-center">
                   <Input placeholder="Nom" value={c.name} onChange={(e) => updCharge(i, { name: e.target.value })} />
                   <Input type="number" placeholder="€/mois" value={c.amount} onChange={(e) => updCharge(i, { amount: parseFloat(e.target.value) || 0 })} />
                   <select className="h-9 rounded-md border bg-background px-2 text-sm" value={c.kind}
                     onChange={(e) => updCharge(i, { kind: e.target.value })}>
                     {KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
+                  </select>
+                  <select className="h-9 rounded-md border bg-background px-2 text-sm" value={c.freq}
+                    onChange={(e) => updCharge(i, { freq: e.target.value })}>
+                    {["monthly", "quarterly", "yearly"].map((fr) => <option key={fr} value={fr}>{fr}</option>)}
                   </select>
                   <Input type="month" value={c.start} onChange={(e) => updCharge(i, { start: e.target.value })} />
                   <Input type="month" value={c.end ?? ""} onChange={(e) => updCharge(i, { end: e.target.value || null })} />
@@ -169,7 +174,7 @@ export function Strategy() {
                 </div>
               ))}
               <Button className="bg-secondary text-secondary-foreground"
-                onClick={() => set({ charges: [...f.charges, { name: "", amount: 0, start: THIS_MONTH, end: null, kind: "other", remaining_balance: null }] })}>
+                onClick={() => set({ charges: [...f.charges, { name: "", amount: 0, freq: "monthly", start: THIS_MONTH, end: null, kind: "other", remaining_balance: null }] })}>
                 + Ajouter une obligation
               </Button>
               {detected.data && detected.data.candidates
@@ -185,8 +190,10 @@ export function Strategy() {
                           {c.name}
                         </span>
                         <span className="flex items-center gap-3 text-muted-foreground">
-                          <span>{c.amount} € · vu {c.count}× depuis {c.start}</span>
+                          <span>{c.amount} € · {c.freq} · vu {c.count}× depuis {c.start}</span>
                           <Button type="button" onClick={() => addDetected(c)}>Ajouter</Button>
+                          <Button type="button" className="bg-secondary text-secondary-foreground"
+                            onClick={() => dismiss.mutate(c.name)}>Refuser</Button>
                         </span>
                       </div>
                     ))}
