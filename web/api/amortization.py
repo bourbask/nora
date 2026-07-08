@@ -4,7 +4,7 @@ import math
 
 
 def payoff_month(start_month, payoff_months):
-    if payoff_months is None:
+    if payoff_months is None or start_month is None:
         return None
     y, m = (int(x) for x in start_month.split("-"))
     idx = y * 12 + (m - 1) + payoff_months

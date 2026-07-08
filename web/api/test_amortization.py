@@ -25,6 +25,7 @@ def test_zero_payment_never_amortizes_no_crash():
 def test_payoff_month():
     assert A.payoff_month("2026-01", 5) == "2026-06"
     assert A.payoff_month("2026-01", None) is None
+    assert A.payoff_month(None, 60) is None            # loan with rate but no start → no crash
 
 if __name__ == "__main__":
     for n, f in sorted(globals().items()):
