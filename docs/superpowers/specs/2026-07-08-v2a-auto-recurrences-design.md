@@ -16,16 +16,24 @@ Zéro LLM (invariant). Détection 100 % déterministe.
 
 ### Donnée réelle observée (historique importé 2026-07-08)
 
-Deux familles de retraits :
-- **Prélèvements / virements** : payee propre (`destination_name = "SFR"`,
-  `description = "Prélèvement: SFR"`, `category_name = "Prélèvements"`). **Ce sont
-  les vraies charges récurrentes** (abos, assurances, prêts, télécom).
-- **Paiements carte** : `destination_name` = marchand + ville, très variable
-  (`"SUPER U 29 GUIPAVAS"`). Dépense variable, **pas** une obligation → bruit.
+Les paiements par carte sont la **principale source de données du quotidien** —
+les exclure raterait des abonnements réels facturés sur carte (Netflix, Adobe,
+Google, ChatGPT, OVH, Microsoft…). Décision : **détecter sur TOUS les retraits**,
+sans filtre par type de paiement.
 
-Décision de conception directe : détecter **uniquement parmi les
-prélèvements/virements**. Haute précision, et `destination_name` y est déjà propre
-→ pas de normalisation de libellé marchand à écrire.
+Le discriminant n'est ni le type de paiement ni la stabilité du montant (les abos
+dérivent : hausses de prix, changements de forfait), mais la **régularité de
+cadence**. Vérifié sur les données réelles : une charge récurrente se déclenche
+~1×/mois à ~30 j d'écart ; une dépense variable (courses, essence, resto) se
+déclenche plusieurs fois/mois à écarts courts et irréguliers. Le test de cadence
+sépare proprement les deux et fait ressortir prêts (Prêt CMB, Cofidis), loyer
+(722,75 €), impôts (DGFiP 212,50 €), prélèvements (Suravenir, EDF, SFR, Orange) ET
+abos carte — tout en rejetant Intermarché/Super U/stations essence.
+
+**Limite connue (déférée) :** le regroupement par `destination_name` exact
+fragmente un même abo en plusieurs variantes de libellé (Adobe apparaît sous 5
+chaînes différentes). L'utilisateur voit des doublons et confirme la bonne ligne.
+Normalisation floue des libellés marchands = knob futur, hors V1.
 
 ## Composant 1 — cœur pur `detect_recurrences`
 
@@ -33,31 +41,34 @@ prélèvements/virements**. Haute précision, et `destination_name` y est déjà
 
 **Signature :**
 ```python
-def detect_recurrences(withdrawals, existing_names, ref_month, window_months=12):
-    # withdrawals: list[dict] déjà filtrés/fetchés par l'appelant, chaque item =
+def detect_recurrences(withdrawals, existing_names):
+    # withdrawals: list[dict] déjà fetchés+fenêtrés par l'appelant, chaque item =
     #   {"date": "YYYY-MM-DD", "amount": float>0, "payee": str}
     # existing_names: set[str] — noms déjà dans recurring_charges (à exclure)
-    # ref_month: "YYYY-MM" (mois de référence, borne haute de la fenêtre)
     # -> list[dict] candidats triés par confidence desc puis amount desc :
     #   {"name","amount","freq","start","end","kind","count","confidence"}
+    #   count = nb de jours d'occurrence distincts ; start = mois de la 1ʳᵉ.
 ```
 
-**Règles de détection :**
-1. Grouper par `payee`.
-2. Un groupe est candidat si **≥ 3 occurrences** dans la fenêtre.
-3. Montant : `amount` = médiane des montants du groupe ; rejeter si l'écart
-   max au médian > **10 %** (montant instable = pas une charge fixe).
-4. Cadence depuis les écarts (jours) médians entre occurrences consécutives :
-   - 26–35 j → `freq = "monthly"` (garder)
-   - sinon → **rejeter**. `forecast.py` V1 ne consomme QUE `freq == "monthly"`
-     (ligne 17 : `active_obligations` skippe tout le reste) ; proposer du
-     trimestriel/annuel amorcerait des charges que le runway ignore en silence.
-     Non-mensuel = déféré avec le support non-mensuel du forecast (V2+).
-5. `start` = mois (`YYYY-MM`) de la 1ʳᵉ occurrence ; `end = null` ;
+**Règles de détection (cadence-primaire) :**
+1. Grouper par `payee` (`destination_name` exact).
+2. **Collapser les occurrences du même jour** (une charge/jour max par payee),
+   puis calculer les écarts (jours) entre jours consécutifs.
+3. Candidat si **≥ 3 jours d'occurrence distincts** dans la fenêtre.
+4. **Cadence mensuelle régulière** (le filtre principal) :
+   - médiane des écarts ∈ **26–35 j**, ET
+   - **≥ 60 %** des écarts ∈ **20–40 j** (rejette les marchands haute fréquence
+     dont la médiane tomberait par hasard près de 30).
+   - sinon → **rejeter**. `freq = "monthly"` pour tous les gardés. `forecast.py`
+     V1 ne consomme QUE `freq == "monthly"` (ligne 17 : `active_obligations`
+     skippe le reste) ; non-mensuel déféré au support non-mensuel du forecast (V2+).
+5. Montant : `amount` = **médiane** des montants du groupe. **PAS un critère de
+   rejet** — les abos dérivent (hausses, forfaits). Reporté tel quel.
+6. `start` = mois (`YYYY-MM`) de la 1ʳᵉ occurrence ; `end = null` ;
    `kind = "other"` (l'utilisateur choisit à la confirmation).
-6. Exclure tout candidat dont `name` ∈ `existing_names`.
-7. `confidence` : `"high"` si écart montant ≤ 5 % ; sinon `"medium"`.
-   (Tous les candidats sont mensuels — cf. règle 4.)
+7. Exclure tout candidat dont `name` ∈ `existing_names`.
+8. `confidence` : `"high"` si écart max au médian du montant ≤ **15 %** ;
+   sinon `"medium"`. (Signale la dérive, ne rejette pas.)
 
 **Valeurs sorties compatibles** avec le modèle `RecurringCharge`
 (`main.py`) : `name:str`, `amount:float≥0`, `freq:str`, `start:YYYY-MM`,
@@ -68,11 +79,11 @@ def detect_recurrences(withdrawals, existing_names, ref_month, window_months=12)
 **Fichier :** `web/api/main.py` (nouvel endpoint) + fetcher dans
 `web/api/firefly_client.py`.
 
-- Fetcher `recurring_withdrawals(window_months=12)` dans `firefly_client.py` :
+- Fetcher `withdrawals_since(window_months=12)` dans `firefly_client.py` :
   withdrawals paginés (réutilise le pattern de `_all_transfers` :
-  `/transactions?type=withdrawal&limit=200&page=`), gardés seulement si
-  `category_name == "Prélèvements"` OU `description` commence par `Prélèvement:`
-  / `Virement:`. Retourne `[{"date","amount"(float>0),"payee"(destination_name)}]`.
+  `/transactions?type=withdrawal&limit=200&page=`), fenêtre bornée par date.
+  **Aucun filtre par type de paiement** — le test de cadence trie. Retourne
+  `[{"date":"YYYY-MM-DD","amount":float>0,"payee":destination_name}]`.
 - Endpoint : lit `recurring_charges` du config (→ `existing_names`), fetch, appelle
   `recurrences.detect_recurrences(...)`, renvoie `{"candidates": [...]}`.
 - **Lecture pure. Aucune écriture** dans strategy.yaml.
@@ -98,10 +109,12 @@ le bouton ne fait que le pré-remplir, aucun nouveau form.
 ## Tests (self-checks plain-assert, `make test-unit`)
 
 `web/api/test_recurrences.py` :
-- groupe mensuel régulier stable → 1 candidat `monthly`, `high`.
-- montant instable (> 10 %) → rejeté.
-- < 3 occurrences → rejeté.
-- cadence irrégulière (écarts hors 26–35 j) → rejetée.
+- groupe mensuel régulier, montant plat → 1 candidat `monthly`, `high`.
+- montant qui dérive (> 15 %) mais cadence mensuelle → **gardé**, `confidence="medium"`.
+- marchand haute fréquence (plusieurs/mois, écarts de quelques jours) → rejeté
+  (< 60 % des écarts en 20–40 j).
+- < 3 jours d'occurrence distincts → rejeté.
+- plusieurs occurrences le même jour → collapsées (pas d'écart de 0 j parasite).
 - cadence trimestrielle (~90 j) → rejetée (non-mensuel non consommé par le runway V1).
 - `name` ∈ existing_names → exclu.
 
@@ -109,8 +122,10 @@ Pas de framework. Style `test_forecast.py`.
 
 ## Hors scope (explicite)
 
-- Détection sur paiements carte / dépense variable — bruit, exclu.
-- Devinette de `kind` par mots-clés — l'utilisateur choisit.
+- Normalisation floue des libellés marchands (dédup des variantes d'un même abo) —
+  regroupement par `destination_name` exact en V1 ; fragmentation acceptée.
+- Devinette de `kind` par mots-clés (loan/tax/rent) — l'utilisateur choisit,
+  même si loyer/impôts/prêts ressortent nettement dans les données.
 - Devinette de `end` / `remaining_balance` — saisie manuelle (prêts bornés).
 - Écriture auto dans strategy.yaml — le modèle est *proposer à confirmer*.
 - Détection des revenus récurrents (salaire) — hors périmètre (ledger = charges).
