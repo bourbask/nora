@@ -6,6 +6,7 @@ Headless : réutilise firefly_client + scores, ne dépend pas du web API tournan
   python3 scripts/capture-snapshot.py --backfill 12  # + 12 mois passés (champs fiables)
 """
 import argparse
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -18,7 +19,9 @@ import firefly_client as fc
 import scores
 import snapshots as S
 
-DATA_DIR = REPO_ROOT / "data"
+# Honor NORA_DATA_DIR like the API (main.py) so capture and /api/snapshots
+# never write/read different files.
+DATA_DIR = Path(os.environ.get("NORA_DATA_DIR", REPO_ROOT / "data"))
 SNAP_FILE = DATA_DIR / "snapshots.json"
 CONFIG = REPO_ROOT / "config" / "strategy.yaml"
 

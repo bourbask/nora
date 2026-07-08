@@ -49,6 +49,12 @@ Headless (ne dépend pas du web API tournant). Réutilise la couche données.
   `scores.dormant_health(...)`, `scores.invested_health(...)` (mêmes appels que
   l'endpoint `/api/scores`) → `S.build_snapshot(...)` → `S.upsert` →
   `S.dump(DATA_DIR/"snapshots.json", store)`.
+- **Limite du backfill (connue) :** `networth(on_date=…)` prend les soldes
+  d'actifs à la date, mais la **dette** vient du ledger `remaining_balance`
+  (sans dimension temporelle) → elle est soustraite au niveau *actuel* pour tous
+  les mois passés. Pendant qu'un prêt se rembourse, les points de valeur nette
+  rétro-remplis sont donc légèrement surévalués (trop peu de dette retranchée).
+  Acceptable pour la *forme* de la tendance ; les points en avant sont exacts.
 - Option `--backfill N` : pour chacun des N derniers mois complets, calcule
   `net_worth = fc.networth(cfg, on_date=<fin de mois>)["net_of_debt"]` et
   `savings_rate = fc.summary(month, cfg)["savings_rate"]` → `S.backfill_snapshot`
