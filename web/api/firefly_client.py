@@ -114,8 +114,17 @@ def networth(cfg, on_date=None):
         else:
             other += a["balance"]
         detail.append({**a, "cls": cls})
+    ledger = (cfg.get("dormant") or {}).get("recurring_charges", [])
+    debt = round(sum(c["remaining_balance"] for c in ledger
+                     if c.get("remaining_balance")), 2)
+    loans = [{"name": c["name"], "remaining_balance": c["remaining_balance"]}
+             for c in ledger if c.get("remaining_balance")]
+    assets = round(dormant + invested + other, 2)
     return {
-        "total": round(dormant + invested + other, 2),
+        "total": assets,                       # assets only (kept for existing callers)
+        "net_of_debt": round(assets - debt, 2),
+        "debt": debt,
+        "loans": loans,
         "dormant": round(dormant, 2),
         "invested": round(invested, 2),
         "unclassified": round(other, 2),

@@ -86,6 +86,20 @@ def test_remaining_gated_by_guardrail():
     assert r["reste_a_investir"] == 0.0          # guardrail blocks deploy
 
 
+def test_debt_total():
+    ch = [{"remaining_balance": 8000, "kind": "loan"},
+          {"remaining_balance": 4400, "kind": "loan"},
+          {"remaining_balance": None, "kind": "rent"}]
+    assert F.debt_total(ch) == 12400.0
+
+
+def test_housing_ratio():
+    ch = [{"amount": 700, "kind": "rent", "freq": "monthly", "start": "2024-01", "end": None}]
+    h = F.housing_ratio(ch, salary=2000, ref_month="2026-07")
+    assert h["ratio"] == 0.35
+    assert h["over_33"] is True
+
+
 if __name__ == "__main__":
     for n, f in sorted(globals().items()):
         if n.startswith("test_"):

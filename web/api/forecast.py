@@ -42,6 +42,18 @@ def expected_salary(income_series, override):
     return round(med, 2)
 
 
+def debt_total(charges):
+    return round(sum(c["remaining_balance"] for c in charges
+                     if c.get("remaining_balance")), 2)
+
+
+def housing_ratio(charges, salary, ref_month):
+    rent = round(sum(c["amount"] for c in charges
+                     if c.get("kind") == "rent" and _active(c, ref_month)), 2)
+    ratio = round(rent / salary, 4) if salary > 0 else 0.0
+    return {"ratio": ratio, "over_33": ratio > 0.33}
+
+
 def guardrail(dormant_cash, monthly_cost, cushion_months, runway):
     coverage = round(dormant_cash / monthly_cost, 2) if monthly_cost > 0 else None
     cushion_ok = coverage is not None and coverage >= cushion_months
