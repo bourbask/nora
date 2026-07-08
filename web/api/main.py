@@ -20,6 +20,7 @@ import firefly_client as fc
 import import_status
 import recurrences
 import scores
+import snapshots
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONFIG_DIR = Path(os.environ.get("NORA_CONFIG_DIR", REPO_ROOT / "config"))
@@ -142,6 +143,14 @@ def api_recurrences_detected():
     dismissed = d.get("dismissed_recurrences", [])
     return {"candidates": recurrences.detect_recurrences(
         fc.withdrawals_since(12), existing, fc.date.today(), dismissed)}
+
+
+SNAPSHOTS_FILE = DATA_DIR / "snapshots.json"
+
+
+@app.get("/api/snapshots")
+def api_snapshots():
+    return {"snapshots": snapshots.to_series(snapshots.load(SNAPSHOTS_FILE))}
 
 
 class DismissBody(BaseModel):
