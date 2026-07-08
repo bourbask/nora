@@ -253,6 +253,31 @@ def withdrawals_since(window_months=12):
     return out
 
 
+def untagged_withdrawals(month):
+    """Retraits du mois SANS catégorie (paginés). category vide → non taggé."""
+    first, last, _ = month_bounds(month)
+    out, page = [], 1
+    while True:
+        data = api_get("/transactions", {
+            "type": "withdrawal", "limit": 200, "page": page,
+            "start": first.isoformat(), "end": last.isoformat(),
+        })
+        for g in data.get("data", []):
+            for t in g["attributes"]["transactions"]:
+                if (t.get("category_name") or ""):
+                    continue  # déjà taggé
+                amt = abs(float(t["amount"]))
+                if amt == 0:
+                    continue
+                out.append({"date": t["date"][:10], "amount": amt,
+                            "description": t.get("description") or "", "category": ""})
+        pag = data.get("meta", {}).get("pagination", {})
+        if page >= pag.get("total_pages", page):
+            break
+        page += 1
+    return out
+
+
 def _month_summary_row(month, cfg):
     s = summary(month, cfg)
     return {"month": month, "income": s["real_income"], "expense": s["real_expense"],

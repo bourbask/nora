@@ -20,6 +20,7 @@ import firefly_client as fc
 import import_status
 import recurrences
 import scores
+import categorization
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONFIG_DIR = Path(os.environ.get("NORA_CONFIG_DIR", REPO_ROOT / "config"))
@@ -142,6 +143,15 @@ def api_recurrences_detected():
     dismissed = d.get("dismissed_recurrences", [])
     return {"candidates": recurrences.detect_recurrences(
         fc.withdrawals_since(12), existing, fc.date.today(), dismissed)}
+
+
+@app.get("/api/categorization")
+def api_categorization(month: str | None = None):
+    month = month or current_month()
+    first, last, _ = fc.month_bounds(month)
+    cov = categorization.coverage(fc._insight_by_category("expense", first, last))
+    top = categorization.top_untagged(fc.untagged_withdrawals(month), 5)
+    return {"month": month, **cov, "top_untagged": top}
 
 
 class DismissBody(BaseModel):
