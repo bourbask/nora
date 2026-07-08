@@ -42,6 +42,31 @@ def expected_salary(income_series, override):
     return round(med, 2)
 
 
+def guardrail(dormant_cash, monthly_cost, cushion_months, runway):
+    coverage = round(dormant_cash / monthly_cost, 2) if monthly_cost > 0 else None
+    cushion_ok = coverage is not None and coverage >= cushion_months
+    runway_ok = all(m["net"] >= 0 for m in runway["months"])
+    invest_ok = bool(cushion_ok and runway_ok)
+    if invest_ok:
+        reason = "Matelas plein et runway positif : investissement débloqué."
+    elif not cushion_ok:
+        reason = f"Matelas à {coverage}/{cushion_months} mois : on sécurise d'abord (R1)."
+    else:
+        reason = "Runway négatif à venir : on protège la liquidité (R7)."
+    return {"invest_ok": invest_ok, "coverage_months": coverage,
+            "reason": reason, "rule_refs": ["R1", "R7"]}
+
+
+def remaining(salary, charges, variable, month, buffer, savings_rate, invest_ok):
+    reste_a_vivre = round(salary - active_obligations(charges, month) - variable, 2)
+    if invest_ok:
+        surplus = max(reste_a_vivre - buffer, 0.0)
+        reste_a_investir = round(min(surplus, salary * savings_rate), 2)
+    else:
+        reste_a_investir = 0.0
+    return {"reste_a_vivre": reste_a_vivre, "reste_a_investir": reste_a_investir}
+
+
 def build_runway(salary, charges, variable, one_offs, dormant_cash, start_month, horizon=12):
     oneoff_by_month = {}
     for o in one_offs:

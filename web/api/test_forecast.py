@@ -49,6 +49,43 @@ def test_build_runway_oneoff_moves_trough():
     assert r["trough"]["month"] == "2026-08"
 
 
+def test_guardrail_blocks_when_cushion_low():
+    runway_ok = {"months": [{"net": 100}]}
+    g = F.guardrail(dormant_cash=6000, monthly_cost=2000, cushion_months=6, runway=runway_ok)
+    assert g["coverage_months"] == 3.0
+    assert g["invest_ok"] is False               # 3 < 6 months
+    assert "R1" in g["rule_refs"]
+
+
+def test_guardrail_blocks_when_runway_red_even_if_cushion_ok():
+    runway_neg = {"months": [{"net": 100}, {"net": -50}]}
+    g = F.guardrail(dormant_cash=20000, monthly_cost=2000, cushion_months=6, runway=runway_neg)
+    assert g["coverage_months"] == 10.0
+    assert g["invest_ok"] is False               # cushion ok but a month is negative
+
+
+def test_guardrail_green():
+    runway_ok = {"months": [{"net": 10}, {"net": 20}]}
+    g = F.guardrail(dormant_cash=20000, monthly_cost=2000, cushion_months=6, runway=runway_ok)
+    assert g["invest_ok"] is True
+
+
+def test_remaining_buffer_first_then_rate():
+    # salary 2000, no obligations, variable 1200 -> reste_a_vivre 800
+    # buffer 500 first, then 20% savings rate of salary as the invest target, capped by surplus
+    r = F.remaining(salary=2000, charges=[], variable=1200, month="2027-03",
+                    buffer=500, savings_rate=0.20, invest_ok=True)
+    assert r["reste_a_vivre"] == 800.0
+    assert r["reste_a_investir"] == 300.0        # min(max(800-500,0), 2000*0.20)=min(300,400)=300
+
+
+def test_remaining_gated_by_guardrail():
+    r = F.remaining(salary=2000, charges=[], variable=1200, month="2026-08",
+                    buffer=500, savings_rate=0.20, invest_ok=False)
+    assert r["reste_a_vivre"] == 800.0
+    assert r["reste_a_investir"] == 0.0          # guardrail blocks deploy
+
+
 if __name__ == "__main__":
     for n, f in sorted(globals().items()):
         if n.startswith("test_"):
