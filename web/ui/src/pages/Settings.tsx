@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
-import { cn, eur } from "@/lib/utils";
-import { useHealth } from "@/lib/api";
+import { cn, eur, ago } from "@/lib/utils";
+import { useHealth, useImportStatus } from "@/lib/api";
 import { THEMES, loadSettings, applySettings, type Accent, type Mode, type Settings as S } from "@/lib/theme";
 
 const MODES: { value: Mode; label: string }[] = [
@@ -13,10 +13,37 @@ const MODES: { value: Mode; label: string }[] = [
 export function Settings() {
   const [s, setS] = useState<S>(loadSettings);
   const health = useHealth();
+  const imports = useImportStatus();
   const update = (patch: Partial<S>) => { const n = { ...s, ...patch }; setS(n); applySettings(n); };
 
   return (
     <div className="max-w-2xl space-y-6">
+      {imports.data && (
+        <Card>
+          <CardContent className="space-y-2 pt-6">
+            <CardTitle>Derniers imports</CardTitle>
+            {Object.keys(imports.data.sources).length === 0 && (
+              <p className="text-sm text-muted-foreground">Aucun import encore.</p>
+            )}
+            {Object.entries(imports.data.sources).map(([src, e]) => {
+              const ok = e.event === "import_completed";
+              return (
+                <div key={src} className="flex items-center justify-between text-sm">
+                  <span className="flex items-center gap-2">
+                    <span className={cn("h-2 w-2 rounded-full", ok ? "bg-success" : "bg-danger")} />
+                    {src}
+                  </span>
+                  <span className="text-muted-foreground">
+                    {ago(e.timestamp)}
+                    {ok && e.transactions != null ? ` · ${e.transactions} lignes` : e.event ? ` · ${e.event}` : ""}
+                  </span>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+
       {health.data && (
         <Card>
           <CardContent className="space-y-2 pt-6">
