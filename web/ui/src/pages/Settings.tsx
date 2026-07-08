@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
-import { cn, eur, ago } from "@/lib/utils";
-import { useHealth, useImportStatus } from "@/lib/api";
+import { cn, eur, ago, pct } from "@/lib/utils";
+import { useHealth, useImportStatus, useCategorization } from "@/lib/api";
 import { THEMES, loadSettings, applySettings, type Accent, type Mode, type Settings as S } from "@/lib/theme";
 
 const MODES: { value: Mode; label: string }[] = [
@@ -13,6 +13,7 @@ const MODES: { value: Mode; label: string }[] = [
 export function Settings() {
   const [s, setS] = useState<S>(loadSettings);
   const health = useHealth();
+  const cat = useCategorization();
   const imports = useImportStatus();
   const update = (patch: Partial<S>) => { const n = { ...s, ...patch }; setS(n); applySettings(n); };
 
@@ -63,6 +64,38 @@ export function Settings() {
               <p className="text-sm text-danger">
                 Comptes non classés : {health.data.reconcile.unclassified_accounts.join(", ")}
               </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {cat.data && (
+        <Card>
+          <CardContent className="space-y-3 pt-6">
+            <CardTitle>Couverture de catégorisation</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Part de la dépense sans catégorie sur {cat.data.month}. À corriger dans Firefly.
+            </p>
+            <div className="flex items-baseline justify-between">
+              <span className="text-2xl font-semibold">{pct(cat.data.ratio)}</span>
+              <span className="text-sm text-muted-foreground">
+                {eur(cat.data.uncategorized)} / {eur(cat.data.total)}
+              </span>
+            </div>
+            <div className="h-2 w-full rounded-full bg-muted">
+              <div className="h-2 rounded-full bg-danger" style={{ width: `${Math.min(cat.data.ratio * 100, 100)}%` }} />
+            </div>
+            {cat.data.top_untagged.length === 0 ? (
+              <p className="text-sm text-success">Tout est catégorisé ✓</p>
+            ) : (
+              <div className="space-y-1">
+                {cat.data.top_untagged.map((t, i) => (
+                  <div key={i} className="flex justify-between text-sm">
+                    <span className="truncate text-muted-foreground">{t.date} · {t.description}</span>
+                    <span>{eur(t.amount)}</span>
+                  </div>
+                ))}
+              </div>
             )}
           </CardContent>
         </Card>

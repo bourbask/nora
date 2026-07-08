@@ -194,3 +194,11 @@ export const useDismissRecurrence = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["recurrences-detected"] }),
   });
 };
+
+export interface UntaggedTx { date: string; amount: number; description: string }
+export interface Categorization {
+  month: string; uncategorized: number; total: number; ratio: number;
+  top_untagged: UntaggedTx[];
+}
+export const useCategorization = () =>
+  useQuery({ queryKey: ["categorization"], queryFn: () => get<Categorization>("/api/categorization") });
