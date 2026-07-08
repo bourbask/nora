@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
+import { cn, eur } from "@/lib/utils";
+import { useHealth } from "@/lib/api";
 import { THEMES, loadSettings, applySettings, type Accent, type Mode, type Settings as S } from "@/lib/theme";
 
 const MODES: { value: Mode; label: string }[] = [
@@ -11,10 +12,35 @@ const MODES: { value: Mode; label: string }[] = [
 
 export function Settings() {
   const [s, setS] = useState<S>(loadSettings);
+  const health = useHealth();
   const update = (patch: Partial<S>) => { const n = { ...s, ...patch }; setS(n); applySettings(n); };
 
   return (
     <div className="max-w-2xl space-y-6">
+      {health.data && (
+        <Card>
+          <CardContent className="space-y-2 pt-6">
+            <CardTitle>Cohérence des données</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Écart entre (revenus − dépenses) et la variation de patrimoine, par mois. Tolérance macro.
+            </p>
+            {health.data.reconcile.months.map((m) => (
+              <div key={m.month} className="flex justify-between text-sm">
+                <span>{m.month}</span>
+                <span className={m.ok ? "text-success" : "text-danger"}>
+                  {m.ok ? "✓" : `écart ${eur(m.gap)}`}
+                </span>
+              </div>
+            ))}
+            {health.data.reconcile.unclassified_accounts.length > 0 && (
+              <p className="text-sm text-danger">
+                Comptes non classés : {health.data.reconcile.unclassified_accounts.join(", ")}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardContent className="space-y-4 pt-6">
           <CardTitle>Thème de couleur</CardTitle>
