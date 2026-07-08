@@ -17,12 +17,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, model_validator
 
 import firefly_client as fc
+import import_status
 import scores
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONFIG_DIR = Path(os.environ.get("NORA_CONFIG_DIR", REPO_ROOT / "config"))
 STRATEGY_FILE = CONFIG_DIR / "strategy.yaml"
 STRATEGY_EXAMPLE = CONFIG_DIR / "strategy.example.yaml"
+DATA_DIR = Path(os.environ.get("NORA_DATA_DIR", REPO_ROOT / "data"))
+AUTO_SYNC_LOG = DATA_DIR / "auto_sync.log"
 
 app = FastAPI(title="NORA API")
 
@@ -122,6 +125,12 @@ def api_housing():
 @app.get("/api/savings-trend")
 def api_savings_trend():
     return fc.savings_trend_view(load_cfg())
+
+
+@app.get("/api/import-status")
+def api_import_status():
+    text = AUTO_SYNC_LOG.read_text() if AUTO_SYNC_LOG.exists() else ""
+    return {"sources": import_status.last_per_source(text)}
 
 
 @app.get("/api/portfolio")
