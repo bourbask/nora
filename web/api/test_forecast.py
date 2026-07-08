@@ -126,6 +126,31 @@ def test_reconcile_flags_bad_month():
     assert r["all_ok"] is False
 
 
+def test_active_quarterly():
+    ch = [{"name": "Q", "amount": 200.0, "freq": "quarterly", "start": "2026-01"}]
+    assert F.active_obligations(ch, "2026-01") == 200.0   # échéance
+    assert F.active_obligations(ch, "2026-02") == 0.0     # hors phase
+    assert F.active_obligations(ch, "2026-04") == 200.0   # +3 mois
+    assert F.active_obligations(ch, "2026-07") == 200.0
+
+
+def test_active_yearly():
+    ch = [{"name": "Y", "amount": 90.0, "freq": "yearly", "start": "2026-03"}]
+    assert F.active_obligations(ch, "2026-03") == 90.0
+    assert F.active_obligations(ch, "2026-04") == 0.0
+    assert F.active_obligations(ch, "2027-03") == 90.0
+
+
+def test_active_nonmonthly_needs_start():
+    ch = [{"name": "Q", "amount": 200.0, "freq": "quarterly"}]   # pas de start
+    assert F.active_obligations(ch, "2026-05") == 0.0
+
+
+def test_active_quarterly_respects_end():
+    ch = [{"name": "Q", "amount": 200.0, "freq": "quarterly", "start": "2026-01", "end": "2026-03"}]
+    assert F.active_obligations(ch, "2026-04") == 0.0    # après end, même si phase OK
+
+
 if __name__ == "__main__":
     for n, f in sorted(globals().items()):
         if n.startswith("test_"):
