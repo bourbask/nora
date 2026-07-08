@@ -7,7 +7,7 @@ import { SavingsTrendChart } from "@/components/charts";
 const KINDS = ["loan", "tax", "insurance", "rent", "subscription", "other"];
 const THIS_MONTH = new Date().toISOString().slice(0, 7);
 
-interface Charge { name: string; amount: number; freq: string; start: string; end: string | null; kind: string; remaining_balance: number | null }
+interface Charge { name: string; amount: number; freq: string; start: string; end: string | null; kind: string; remaining_balance: number | null; rate: number | null }
 interface OneOffForm { name: string; amount: number; date: string; kind: string }
 
 interface FormState {
@@ -44,6 +44,7 @@ function toForm(s: StrategyEdit): FormState {
       name: c.name, amount: c.amount, freq: c.freq ?? "monthly",
       start: c.start ?? THIS_MONTH, end: c.end ?? null,
       kind: c.kind ?? "other", remaining_balance: c.remaining_balance ?? null,
+      rate: c.rate ?? null,
     })),
     oneOffs: (d.one_offs ?? []).map((o) => ({
       name: o.name, amount: o.amount, date: o.date ?? THIS_MONTH, kind: o.kind ?? "other",
@@ -64,6 +65,7 @@ function toPayload(f: FormState): StrategyEdit {
         name: c.name, amount: c.amount, freq: c.freq || "monthly",
         start: c.start || THIS_MONTH, end: c.end || null,
         kind: c.kind || "other", remaining_balance: c.remaining_balance,
+        rate: c.rate,
       })),
       one_offs: f.oneOffs.filter((o) => o.name).map((o) => ({
         name: o.name, amount: o.amount, date: o.date || THIS_MONTH, kind: o.kind || "other",
@@ -104,7 +106,7 @@ export function Strategy() {
   const addDetected = (c: { name: string; amount: number; start: string; freq: string }) =>
     set({ charges: [...f.charges, {
       name: c.name, amount: c.amount, freq: c.freq, start: c.start,
-      end: null, kind: "other", remaining_balance: null,
+      end: null, kind: "other", remaining_balance: null, rate: null,
     }] });
   const updCharge = (i: number, patch: Partial<Charge>) => {
     const ch = [...f.charges]; ch[i] = { ...ch[i], ...patch }; set({ charges: ch });
@@ -154,7 +156,7 @@ export function Strategy() {
             <Label>Obligations récurrentes (montant/mois, période, type, solde restant si prêt)</Label>
             <div className="mt-2 space-y-2">
               {f.charges.map((c, i) => (
-                <div key={i} className="grid grid-cols-[1fr_90px_110px_110px_100px_100px_90px_36px] gap-2 items-center">
+                <div key={i} className="grid grid-cols-[1fr_90px_110px_110px_100px_100px_90px_90px_36px] gap-2 items-center">
                   <Input placeholder="Nom" value={c.name} onChange={(e) => updCharge(i, { name: e.target.value })} />
                   <Input type="number" placeholder="€/mois" value={c.amount} onChange={(e) => updCharge(i, { amount: parseFloat(e.target.value) || 0 })} />
                   <select className="h-9 rounded-md border bg-background px-2 text-sm" value={c.kind}
@@ -169,12 +171,14 @@ export function Strategy() {
                   <Input type="month" value={c.end ?? ""} onChange={(e) => updCharge(i, { end: e.target.value || null })} />
                   <Input type="number" placeholder="solde" value={c.remaining_balance ?? ""}
                     onChange={(e) => updCharge(i, { remaining_balance: e.target.value === "" ? null : (parseFloat(e.target.value) || 0) })} />
+                  <Input type="number" step="0.001" placeholder="taux (0.045)" value={c.rate ?? ""}
+                    onChange={(e) => updCharge(i, { rate: e.target.value === "" ? null : (parseFloat(e.target.value) || 0) })} />
                   <Button className="bg-secondary text-secondary-foreground"
                     onClick={() => set({ charges: f.charges.filter((_, j) => j !== i) })}>✕</Button>
                 </div>
               ))}
               <Button className="bg-secondary text-secondary-foreground"
-                onClick={() => set({ charges: [...f.charges, { name: "", amount: 0, freq: "monthly", start: THIS_MONTH, end: null, kind: "other", remaining_balance: null }] })}>
+                onClick={() => set({ charges: [...f.charges, { name: "", amount: 0, freq: "monthly", start: THIS_MONTH, end: null, kind: "other", remaining_balance: null, rate: null }] })}>
                 + Ajouter une obligation
               </Button>
               {detected.data && detected.data.candidates

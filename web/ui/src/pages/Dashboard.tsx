@@ -4,7 +4,7 @@ import { GuardrailBanner } from "@/components/GuardrailBanner";
 import { RunwayChart, NetWorthChart } from "@/components/charts";
 import {
   useNetWorth, useSummary, useExpenseCategories, useScores,
-  useGuardrail, useRunway, useRemaining, useHousing, useSnapshots,
+  useGuardrail, useRunway, useRemaining, useHousing, useSnapshots, useLoans,
 } from "@/lib/api";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { eur, pct } from "@/lib/utils";
@@ -19,6 +19,7 @@ export function Dashboard() {
   const remaining = useRemaining();
   const housing = useHousing();
   const snaps = useSnapshots();
+  const loans = useLoans();
 
   if (nw.isLoading || sum.isLoading) return <p className="text-muted-foreground">Chargement…</p>;
   if (nw.error) return <p className="text-danger">Erreur API : {String(nw.error)}</p>;
@@ -132,6 +133,25 @@ export function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {loans.data && loans.data.loans.length > 0 && (
+        <Card>
+          <CardContent className="space-y-2 pt-6">
+            <CardTitle>Prêts</CardTitle>
+            {loans.data.loans.map((l) => (
+              <div key={l.name} className="flex items-center justify-between text-sm">
+                <span>{l.name}</span>
+                <span className="text-muted-foreground">
+                  {eur(l.balance)}
+                  {l.needs_rate ? " · ajoute le taux dans Stratégies"
+                    : l.never_amortizes ? " · mensualité insuffisante"
+                    : ` · soldé ${l.payoff_month} · intérêts ${eur(l.total_interest ?? 0)}`}
+                </span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

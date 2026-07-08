@@ -135,6 +135,7 @@ export const useImportStatus = () =>
 export interface RecurringCharge {
   name: string; amount: number; freq: string;
   start: string; end: string | null; kind: string; remaining_balance: number | null;
+  rate: number | null;
 }
 export interface OneOff { name: string; amount: number; date: string; kind: string }
 export interface StrategyEdit {
@@ -204,3 +205,11 @@ export interface Snapshot {
 }
 export const useSnapshots = () =>
   useQuery({ queryKey: ["snapshots"], queryFn: () => get<{ snapshots: Snapshot[] }>("/api/snapshots") });
+
+export interface LoanAmort {
+  name: string; balance: number; payment: number; rate: number | null;
+  payoff_month: string | null; total_interest: number | null;
+  never_amortizes: boolean; needs_rate: boolean;
+}
+export const useLoans = () =>
+  useQuery({ queryKey: ["loans"], queryFn: () => get<{ loans: LoanAmort[] }>("/api/loans") });
