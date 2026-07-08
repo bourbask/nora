@@ -22,3 +22,18 @@ logs: `journalctl --user -u firefly-autosync.service`.
 
 `notify-send` needs the graphical session, so keep the timer under the user manager
 (not system cron). `Persistent=true` catches up a run missed while the PC was off.
+
+## Monthly snapshot capture
+
+Same install pattern as auto-sync, substituting the project dir:
+
+```sh
+DIR="$(cd "$(dirname "$0")/../.." && pwd)"
+sed "s#__PROJECT_DIR__#$DIR#" scripts/systemd/nora-snapshot.service \
+    > ~/.config/systemd/user/nora-snapshot.service
+cp scripts/systemd/nora-snapshot.timer ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now nora-snapshot.timer
+```
+
+First run, backfill history once: `./.venv/bin/python scripts/capture-snapshot.py --backfill 12`.
