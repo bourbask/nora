@@ -20,7 +20,7 @@ export default function App() {
 
       <Tabs defaultValue="dashboard">
         <TabsList className="mb-6">
-          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+          <TabsTrigger value="dashboard">Aujourd'hui</TabsTrigger>
           <TabsTrigger value="flow">Flux &amp; Portefeuille</TabsTrigger>
           <TabsTrigger value="strategy">Stratégies</TabsTrigger>
           <TabsTrigger value="settings">Réglages</TabsTrigger>
