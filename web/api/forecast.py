@@ -43,8 +43,11 @@ def active_obligations(charges, month):
 
 def variable_typical(typical_expense, charges, ref_month):
     """Living cost that is NOT an already-active recurring obligation, so the
-    runway does not double-count obligations already present in history."""
-    return round(max(typical_expense - active_obligations(charges, ref_month), 0.0), 2)
+    runway does not double-count. Only monthly obligations are stripped here —
+    they sit in every month's median expense; cadenced (quarterly/yearly) charges
+    are NOT reliably in the median, so build_runway imputes them per due month."""
+    monthly = [c for c in charges if c.get("freq", "monthly") == "monthly"]
+    return round(max(typical_expense - active_obligations(monthly, ref_month), 0.0), 2)
 
 
 def expected_salary(income_series, override):
