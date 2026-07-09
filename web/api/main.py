@@ -16,6 +16,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, model_validator
 
+import amortization
+import drift
 import firefly_client as fc
 import import_status
 import recurrences
@@ -198,6 +200,39 @@ def api_strategy_get():
     return load_cfg()
 
 
+@app.get("/api/drift")
+def api_drift():
+    cfg = load_cfg()
+    pf = fc.portfolio(cfg)
+    inv = cfg.get("invested", {})
+    return {"alerts": drift.drift_alerts(
+        pf["bucket_weights"], inv.get("target_buckets", {}),
+        pf["crypto_weight"], inv.get("crypto_cap", 0.10), inv.get("drift_threshold", 0.10))}
+
+
+@app.get("/api/loans")
+def api_loans():
+    cfg = load_cfg()
+    out = []
+    for c in cfg.get("dormant", {}).get("recurring_charges", []):
+        if c.get("kind") != "loan" or not c.get("remaining_balance"):
+            continue
+        bal = c["remaining_balance"]
+        pay = c.get("amount") or 0
+        rate = c.get("rate")
+        if rate is not None and pay > 0:
+            s = amortization.schedule(bal, pay, rate)
+            out.append({"name": c["name"], "balance": bal, "payment": pay, "rate": rate,
+                        "payoff_month": amortization.payoff_month(c.get("start"), s["payoff_months"]),
+                        "total_interest": s["total_interest"],
+                        "never_amortizes": s["never_amortizes"], "needs_rate": False})
+        else:
+            out.append({"name": c["name"], "balance": bal, "payment": pay, "rate": rate,
+                        "payoff_month": None, "total_interest": None,
+                        "never_amortizes": False, "needs_rate": rate is None})
+    return {"loans": out}
+
+
 # ── editable strategy knobs (accounts / instrument_rules / weights preserved) ──
 
 MONTH_RE = r"^\d{4}-\d{2}$"
@@ -211,6 +246,7 @@ class RecurringCharge(BaseModel):
     end: Optional[str] = Field(default=None, pattern=MONTH_RE)
     kind: Literal["loan", "tax", "insurance", "rent", "subscription", "other"] = "other"
     remaining_balance: Optional[float] = Field(default=None, ge=0)
+    rate: Optional[float] = Field(default=None, ge=0, le=1)
 
     @model_validator(mode="after")
     def order_ok(self):
@@ -253,6 +289,7 @@ class InvestedEdit(BaseModel):
     target_buckets: Buckets
     target_holdings: int = Field(gt=0, le=200)
     crypto_cap: float = Field(ge=0, le=1)
+    drift_threshold: float = Field(default=0.10, ge=0, le=1)
 
 
 class StrategyEdit(BaseModel):
@@ -283,6 +320,7 @@ def api_strategy_put(edit: StrategyEdit):
     inv["target_buckets"] = edit.invested.target_buckets.model_dump()
     inv["target_holdings"] = edit.invested.target_holdings
     inv["crypto_cap"] = edit.invested.crypto_cap
+    inv["drift_threshold"] = edit.invested.drift_threshold
 
     STRATEGY_FILE.parent.mkdir(parents=True, exist_ok=True)
     STRATEGY_FILE.write_text(yaml.safe_dump(cfg, allow_unicode=True, sort_keys=False))
