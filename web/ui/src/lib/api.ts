@@ -197,6 +197,14 @@ export const useDismissRecurrence = () => {
   });
 };
 
+export interface UntaggedTx { date: string; amount: number; description: string }
+export interface Categorization {
+  month: string; uncategorized: number; total: number; ratio: number;
+  top_untagged: UntaggedTx[];
+}
+export const useCategorization = () =>
+  useQuery({ queryKey: ["categorization"], queryFn: () => get<Categorization>("/api/categorization") });
+
 export interface Snapshot {
   month: string; net_worth: number; net_worth_gross: number | null;
   debt: number | null; dormant_cash: number | null; invested_cost: number | null;
